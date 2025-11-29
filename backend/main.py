@@ -5,6 +5,12 @@ import json
 import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
+from routers import users, datasets, workflow
+from database import users_collection
+from auth import get_password_hash
+
+load_dotenv()
 
 app = FastAPI()
 
@@ -17,62 +23,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-BASE_DIR = Path(__file__).parent.parent / "dataset"
+app.include_router(users.router)
+app.include_router(datasets.router)
+app.include_router(workflow.router)
 
-class DatasetFile(BaseModel):
-    path: str
-    name: str
-    type: str
-
-class DatasetContent(BaseModel):
-    content: List[Dict[str, Any]]
-
-@app.get("/datasets")
-async def list_datasets():
-    datasets = []
-    if not BASE_DIR.exists():
-        return {"datasets": []}
-
-    for turn_type in ['multi-turn', 'single-turn']:
-        turn_dir = BASE_DIR / turn_type
-        if turn_dir.exists():
-            for file_path in turn_dir.glob('*.json'):
-                datasets.append({
-                    "path": f"{turn_type}/{file_path.name}",
-                    "name": file_path.stem.replace('_', ' ').title(),
-                    "type": turn_type
-                })
-    return {"datasets": datasets}
-
-@app.get("/datasets/{turn_type}/{filename}")
-async def get_dataset(turn_type: str, filename: str):
-    file_path = BASE_DIR / turn_type / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Dataset not found")
-    
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = json.load(f)
-        return {"content": content}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/datasets/{turn_type}/{filename}")
-async def save_dataset(turn_type: str, filename: str, data: DatasetContent):
-    file_path = BASE_DIR / turn_type / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Dataset not found")
-    
-    try:
-        # Verify it's valid JSON structure (list of dicts)
-        content = data.content
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(content, f, ensure_ascii=False, indent=2)
-            
-        return {"status": "success", "message": "File saved successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.on_event("startup")
+async def startup_db_client():
+    # Create default admin if not exists
+    if not users_collection.find_one({"role": "admin"}):
+        admin_user = {
+            "username": "admin",
+            "full_name": "System Administrator",
+            "email": "admin@example.com",
+            "role": "admin",
+            "hashed_password": get_password_hash("admin123")
+        }
+        users_collection.insert_one(admin_user)
+        print("Default admin user created: admin / admin123")
 
 if __name__ == "__main__":
     import uvicorn
