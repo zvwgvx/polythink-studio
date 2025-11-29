@@ -42,14 +42,84 @@ export const api = {
     },
 
     createUser: async (userData) => {
-        const response = await fetch(`${API_URL}/users`, {
+        // Legacy: Replaced by registration
+        throw new Error("Use registration flow");
+    },
+
+    loginRequest: async (email) => {
+        const response = await fetch(`${API_URL}/auth/login-request`, {
             method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify(userData),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
         });
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.detail || 'Failed to create user');
+            throw new Error(error.detail || 'Failed to request login code');
+        }
+        return response.json();
+    },
+
+    loginVerify: async (email, code) => {
+        const response = await fetch(`${API_URL}/auth/login-verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, code }),
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to verify login code');
+        }
+        return response.json();
+    },
+
+    register: async (username, email, fullName, invitationCode) => {
+        const response = await fetch(`${API_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, full_name: fullName, invitation_code: invitationCode }),
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Registration failed');
+        }
+        return response.json();
+    },
+
+    verifyEmail: async (email, code) => {
+        const response = await fetch(`${API_URL}/auth/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, code }),
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Verification failed');
+        }
+        return response.json();
+    },
+
+    forgotPassword: async (email) => {
+        const response = await fetch(`${API_URL}/auth/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to request password reset');
+        }
+        return response.json();
+    },
+
+    resetPassword: async (email, code, newPassword) => {
+        const response = await fetch(`${API_URL}/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, code, new_password: newPassword }),
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to reset password');
         }
         return response.json();
     },
@@ -60,6 +130,24 @@ export const api = {
             headers: getHeaders(),
         });
         if (!response.ok) throw new Error('Failed to delete user');
+        return response.json();
+    },
+
+    // Invitation API
+    generateInvite: async () => {
+        const response = await fetch(`${API_URL}/admin/invites`, {
+            method: 'POST',
+            headers: getHeaders(),
+        });
+        if (!response.ok) throw new Error('Failed to generate invite');
+        return response.json();
+    },
+
+    getInvites: async () => {
+        const response = await fetch(`${API_URL}/admin/invites`, {
+            headers: getHeaders(),
+        });
+        if (!response.ok) throw new Error('Failed to fetch invites');
         return response.json();
     },
 

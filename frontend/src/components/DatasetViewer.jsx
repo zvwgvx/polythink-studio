@@ -5,9 +5,32 @@ import Card from './Card';
 import Button from './Button';
 import Toast from './Toast';
 import ConfirmModal from './ConfirmModal';
+import InputModal from './InputModal';
 import { api } from '../services/api';
 
-function DatasetViewer({ onLogout, isAdmin }) {
+const AutoResizeTextarea = ({ value, onChange, className, placeholder }) => {
+    const textareaRef = useRef(null);
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+        }
+    }, [value]);
+
+    return (
+        <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={onChange}
+            className={`${className} overflow-hidden resize-none`}
+            placeholder={placeholder}
+            rows={1}
+        />
+    );
+};
+
+function DatasetViewer({ user, onLogout, isAdmin }) {
     const [datasets, setDatasets] = useState([]);
     const [selectedDataset, setSelectedDataset] = useState(null);
     const [content, setContent] = useState(null);
@@ -25,8 +48,22 @@ function DatasetViewer({ onLogout, isAdmin }) {
         isOpen: false,
         title: '',
         message: '',
+        onConfirm: null,
+        onDiscard: null,
+        onCancel: null,
+        confirmText: 'Save',
+        discardText: 'Discard',
+        cancelText: 'Cancel',
+        confirmVariant: 'success'
+    });
+
+    // Input Modal State
+    const [inputModalConfig, setInputModalConfig] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        value: '',
         onConfirm: () => { },
-        onDiscard: () => { },
         onCancel: () => { }
     });
 
@@ -41,6 +78,9 @@ function DatasetViewer({ onLogout, isAdmin }) {
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(10);
+
+    // Graph hover state
+    const [hoveredIndex, setHoveredIndex] = useState(null);
 
     useEffect(() => {
         loadDatasets();
@@ -62,11 +102,25 @@ function DatasetViewer({ onLogout, isAdmin }) {
     const handleSelectDataset = async (dataset) => {
         // Check for unsaved changes before switching
         if (editingItemIndex !== null) {
-            if (!window.confirm("You have unsaved changes. Discard them and switch dataset?")) {
-                return;
-            }
+            setModalConfig({
+                isOpen: true,
+                title: 'Unsaved Changes',
+                message: 'You have unsaved changes. Discard them and switch dataset?',
+                onConfirm: null, // No save option here based on original logic
+                onDiscard: () => {
+                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                    proceedSelectDataset(dataset);
+                },
+                onCancel: () => setModalConfig(prev => ({ ...prev, isOpen: false })),
+                discardText: 'Discard & Switch',
+                cancelText: 'Cancel'
+            });
+            return;
         }
+        proceedSelectDataset(dataset);
+    };
 
+    const proceedSelectDataset = async (dataset) => {
         setSelectedDataset(dataset);
         setLoading(true);
         setError(null);
@@ -78,7 +132,15 @@ function DatasetViewer({ onLogout, isAdmin }) {
             const filename = dataset.path.split('/')[1];
             // Always try to get fork first
             const data = await api.getDatasetContent(dataset.type, filename, true);
-            setContent(data.content);
+
+            if (Array.isArray(data.content)) {
+                setContent(data.content);
+            } else {
+                console.error("Dataset content is not an array:", data.content);
+                setContent([]);
+                setError("Invalid dataset format: Content must be an array.");
+            }
+
             setIsFork(data.is_fork);
             setHasChanges(data.has_changes);
         } catch (err) {
@@ -88,11 +150,20 @@ function DatasetViewer({ onLogout, isAdmin }) {
         }
     };
 
-    const handleCreatePR = async () => {
+    const handleCreatePR = () => {
         if (!selectedDataset) return;
-        const description = prompt("Enter a description for your Pull Request:");
-        if (description === null) return; // Cancelled
+        setInputModalConfig({
+            isOpen: true,
+            title: 'Create Pull Request',
+            message: 'Enter a description for your Pull Request:',
+            value: '',
+            onConfirm: (description) => submitPR(description),
+            onCancel: () => setInputModalConfig(prev => ({ ...prev, isOpen: false }))
+        });
+    };
 
+    const submitPR = async (description) => {
+        setInputModalConfig(prev => ({ ...prev, isOpen: false }));
         try {
             await api.createPR(selectedDataset.path, description);
             showToast("Pull Request created successfully!", "success");
@@ -131,13 +202,27 @@ function DatasetViewer({ onLogout, isAdmin }) {
         }
     };
 
-    // Item Editing Logic
     const startEditingItem = (globalIdx) => {
         if (editingItemIndex !== null && editingItemIndex !== globalIdx) {
-            if (!window.confirm("You have unsaved changes in another item. Discard them?")) {
-                return;
-            }
+            setModalConfig({
+                isOpen: true,
+                title: 'Unsaved Changes',
+                message: 'You have unsaved changes in another item. Discard them?',
+                onConfirm: null,
+                onDiscard: () => {
+                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                    proceedStartEditingItem(globalIdx);
+                },
+                onCancel: () => setModalConfig(prev => ({ ...prev, isOpen: false })),
+                discardText: 'Discard',
+                cancelText: 'Cancel'
+            });
+            return;
         }
+        proceedStartEditingItem(globalIdx);
+    };
+
+    const proceedStartEditingItem = (globalIdx) => {
         setEditingItemIndex(globalIdx);
         // Deep copy to avoid mutating state directly
         setTempItemData(JSON.parse(JSON.stringify(content[globalIdx])));
@@ -324,7 +409,7 @@ function DatasetViewer({ onLogout, isAdmin }) {
 
     const Sidebar = (
         <div className="flex flex-col h-full">
-            <div className="space-y-8 flex-1">
+            <div className="space-y-8 flex-1 overflow-y-auto">
                 <div>
                     <h2 className="font-bold mb-3 text-gray-500 text-xs uppercase tracking-widest">Multi-Turn</h2>
                     <div className="space-y-1">
@@ -379,6 +464,234 @@ function DatasetViewer({ onLogout, isAdmin }) {
         </div>
     );
 
+    // Contribution Line Chart Helper (SVG)
+    const renderContributionGraph = () => {
+        const stats = user?.contribution_stats?.daily_stats;
+        if (!stats || stats.length === 0) return null;
+
+        // Dimensions
+        const width = 800;
+        const height = 350;
+        const padding = 40;
+        const chartWidth = width - padding * 2;
+        const chartHeight = height - padding * 2;
+
+        // Find Max Y
+        const maxVal = Math.max(
+            ...stats.map(d => Math.max(d.total, d.merged, d.rejected)),
+            5 // Minimum scale
+        );
+
+        // Scales
+        const xScale = (index) => padding + (index / (stats.length - 1)) * chartWidth;
+        const yScale = (value) => height - padding - (value / maxVal) * chartHeight;
+
+        // Smooth Curve Generator (Catmull-Rom Spline)
+        const getPoint = (i, key) => {
+            const d = stats[i];
+            return [xScale(i), yScale(d[key])];
+        };
+
+        const createSmoothPath = (key) => {
+            if (stats.length === 0) return "";
+            if (stats.length === 1) return `M ${xScale(0)} ${yScale(stats[0][key])}`;
+
+            let path = `M ${xScale(0)} ${yScale(stats[0][key])}`;
+
+            for (let i = 0; i < stats.length - 1; i++) {
+                const p0 = getPoint(Math.max(i - 1, 0), key);
+                const p1 = getPoint(i, key);
+                const p2 = getPoint(i + 1, key);
+                const p3 = getPoint(Math.min(i + 2, stats.length - 1), key);
+
+                const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+                const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+
+                const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+                const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+
+                path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2[0]} ${p2[1]}`;
+            }
+            return path;
+        };
+
+        // Axis Points
+        const yTicks = [0, Math.ceil(maxVal / 2), maxVal];
+        const xTicks = stats.filter((_, i) => i % 5 === 0); // Show every 5th date
+
+        const handleMouseMove = (e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+
+            // Find nearest index
+            const rawIndex = ((x - padding) / chartWidth) * (stats.length - 1);
+            const index = Math.max(0, Math.min(Math.round(rawIndex), stats.length - 1));
+
+            setHoveredIndex(index);
+        };
+
+        const handleMouseLeave = () => {
+            setHoveredIndex(null);
+        };
+
+        const hoveredData = hoveredIndex !== null ? stats[hoveredIndex] : null;
+
+        return (
+            <div className="mt-8">
+                <div className="flex justify-between items-end mb-4">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Contribution Activity (Last 30 Days)</h3>
+                    <div className="flex gap-4 text-[10px] font-bold uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-1 bg-blue-400 rounded-full"></div>
+                            <span className="text-blue-400">Total Created</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-1 bg-green-400 rounded-full"></div>
+                            <span className="text-green-400">Merged</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-1 bg-red-400 rounded-full"></div>
+                            <span className="text-red-400">Rejected</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-[#121212] border border-[#333] rounded p-4 overflow-hidden relative">
+                    <svg
+                        viewBox={`0 0 ${width} ${height}`}
+                        className="w-full h-auto cursor-crosshair"
+                        onMouseMove={handleMouseMove}
+                        onMouseLeave={handleMouseLeave}
+                    >
+                        {/* Grid Lines (Y-Axis) */}
+                        {yTicks.map(tick => (
+                            <g key={tick}>
+                                <line
+                                    x1={padding}
+                                    y1={yScale(tick)}
+                                    x2={width - padding}
+                                    y2={yScale(tick)}
+                                    stroke="#333"
+                                    strokeWidth="1"
+                                    strokeDasharray="4 4"
+                                />
+                                <text
+                                    x={padding - 10}
+                                    y={yScale(tick) + 4}
+                                    textAnchor="end"
+                                    className="fill-gray-500 text-[10px] font-mono"
+                                >
+                                    {tick}
+                                </text>
+                            </g>
+                        ))}
+
+                        {/* Grid Lines (X-Axis) - Vertical Lines for every day */}
+                        {stats.map((d, i) => (
+                            <line
+                                key={`grid-${d.date}`}
+                                x1={xScale(i)}
+                                y1={0}
+                                x2={xScale(i)}
+                                y2={height - padding}
+                                stroke="#333"
+                                strokeWidth="1"
+                                strokeDasharray="2 2"
+                                opacity="0.1"
+                            />
+                        ))}
+
+                        {/* X-Axis Labels */}
+                        {xTicks.map((d, i) => {
+                            const index = stats.indexOf(d);
+                            return (
+                                <text
+                                    key={d.date}
+                                    x={xScale(index)}
+                                    y={height - 10}
+                                    textAnchor="middle"
+                                    className="fill-gray-500 text-[10px] font-mono"
+                                >
+                                    {d.date.slice(5)}
+                                </text>
+                            );
+                        })}
+
+                        {/* Data Lines (Smooth) */}
+                        <path
+                            d={createSmoothPath('total')}
+                            fill="none"
+                            stroke="#60A5FA"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="drop-shadow-lg"
+                        />
+                        <path
+                            d={createSmoothPath('merged')}
+                            fill="none"
+                            stroke="#4ADE80"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+                        <path
+                            d={createSmoothPath('rejected')}
+                            fill="none"
+                            stroke="#F87171"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+
+                        {/* Hover Overlay & Tooltip */}
+                        {hoveredIndex !== null && hoveredData && (
+                            <g>
+                                {/* Vertical Cursor Line */}
+                                <line
+                                    x1={xScale(hoveredIndex)}
+                                    y1={0}
+                                    x2={xScale(hoveredIndex)}
+                                    y2={height - padding}
+                                    stroke="white"
+                                    strokeWidth="1"
+                                    strokeDasharray="4 4"
+                                    opacity="0.5"
+                                />
+
+                                {/* Active Dots */}
+                                <circle cx={xScale(hoveredIndex)} cy={yScale(hoveredData.total)} r="5" fill="#60A5FA" stroke="#121212" strokeWidth="2" />
+                                <circle cx={xScale(hoveredIndex)} cy={yScale(hoveredData.merged)} r="5" fill="#4ADE80" stroke="#121212" strokeWidth="2" />
+                                {hoveredData.rejected > 0 && (
+                                    <circle cx={xScale(hoveredIndex)} cy={yScale(hoveredData.rejected)} r="5" fill="#F87171" stroke="#121212" strokeWidth="2" />
+                                )}
+
+                                {/* Tooltip Box */}
+                                <g transform={`translate(${Math.min(xScale(hoveredIndex) + 10, width - 160)}, 20)`}>
+                                    <rect width="150" height="90" rx="4" fill="#1E1E1E" stroke="#333" strokeWidth="1" className="shadow-xl" />
+                                    <text x="10" y="20" className="fill-white text-xs font-bold uppercase tracking-wider">{hoveredData.date}</text>
+
+                                    <g transform="translate(10, 40)">
+                                        <circle cx="4" cy="-3" r="3" fill="#60A5FA" />
+                                        <text x="15" y="0" className="fill-gray-300 text-[10px] font-mono">Total: {hoveredData.total}</text>
+                                    </g>
+                                    <g transform="translate(10, 55)">
+                                        <circle cx="4" cy="-3" r="3" fill="#4ADE80" />
+                                        <text x="15" y="0" className="fill-gray-300 text-[10px] font-mono">Merged: {hoveredData.merged}</text>
+                                    </g>
+                                    <g transform="translate(10, 70)">
+                                        <circle cx="4" cy="-3" r="3" fill="#F87171" />
+                                        <text x="15" y="0" className="fill-gray-300 text-[10px] font-mono">Rejected: {hoveredData.rejected}</text>
+                                    </g>
+                                </g>
+                            </g>
+                        )}
+                    </svg>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <Layout sidebar={Sidebar}>
             {toast && (
@@ -396,13 +709,52 @@ function DatasetViewer({ onLogout, isAdmin }) {
                 onConfirm={modalConfig.onConfirm}
                 onDiscard={modalConfig.onDiscard}
                 onCancel={modalConfig.onCancel}
+                confirmText={modalConfig.confirmText}
+                discardText={modalConfig.discardText}
+                cancelText={modalConfig.cancelText}
+                confirmVariant={modalConfig.confirmVariant}
+            />
+
+            <InputModal
+                isOpen={inputModalConfig.isOpen}
+                title={inputModalConfig.title}
+                message={inputModalConfig.message}
+                value={inputModalConfig.value}
+                onChange={(val) => setInputModalConfig(prev => ({ ...prev, value: val }))}
+                onConfirm={() => inputModalConfig.onConfirm(inputModalConfig.value)}
+                onCancel={inputModalConfig.onCancel}
             />
 
             {!selectedDataset ? (
-                <Card className="text-center py-32 border-dashed border-[#333] bg-transparent">
-                    <h2 className="text-4xl font-black mb-4 text-white tracking-tight">WELCOME</h2>
-                    <p className="text-gray-500">Select a dataset from the sidebar to start reviewing.</p>
-                </Card>
+                <div className="space-y-4">
+                    <Card className="text-center py-10 bg-transparent border-none shadow-none">
+                        <h2 className="text-4xl font-black mb-4 text-white tracking-tight">Welcome, {user?.full_name || user?.username}</h2>
+                        <p className="text-gray-500">Select a dataset from the sidebar to start reviewing.</p>
+                    </Card>
+
+                    {/* Contribution Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <Card className="text-center py-4 bg-gradient-to-br from-[#1E1E1E] to-[#121212]">
+                            <div className="text-4xl font-black text-blue-400 mb-2">{user?.contribution_stats?.total_prs || 0}</div>
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total Pull Requests</div>
+                        </Card>
+                        <Card className="text-center py-4 bg-gradient-to-br from-[#1E1E1E] to-[#121212]">
+                            <div className="text-4xl font-black text-green-400 mb-2">{user?.contribution_stats?.merged_prs || 0}</div>
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Merged Contributions</div>
+                        </Card>
+                        <Card className="text-center py-4 bg-gradient-to-br from-[#1E1E1E] to-[#121212]">
+                            <div className="text-4xl font-black text-red-400 mb-2">
+                                {user?.contribution_stats?.rejected_prs || 0}
+                            </div>
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Rejected Contributions</div>
+                        </Card>
+                    </div>
+
+                    {/* Contribution Graph */}
+                    <Card>
+                        {renderContributionGraph()}
+                    </Card>
+                </div>
             ) : (
                 <div className="space-y-6 pb-20">
                     {/* Header */}
@@ -459,9 +811,13 @@ function DatasetViewer({ onLogout, isAdmin }) {
                                     <PaginationControls totalItems={content?.length || 0} />
 
                                     {getCurrentItems(content).map((item, idx) => {
+                                        if (!item) return null; // Safety check for null items
+
                                         const globalIdx = indexOfFirstItem + idx;
                                         const isEditingThis = editingItemIndex === globalIdx;
                                         const displayItem = isEditingThis ? tempItemData : item;
+
+                                        if (!displayItem) return null; // Safety check for displayItem
 
                                         return (
                                             <div key={globalIdx} id={isEditingThis ? "editing-card" : undefined}>
@@ -470,7 +826,7 @@ function DatasetViewer({ onLogout, isAdmin }) {
                                                     className={`relative group transition-all duration-300 ${isEditingThis ? 'ring-2 ring-white shadow-2xl scale-[1.01] z-10' : 'hover:border-gray-500'}`}
                                                 >
                                                     {/* Edit Header Actions */}
-                                                    <div className="absolute top-6 right-6 flex gap-2 z-20">
+                                                    <div className={`absolute right-6 flex gap-2 z-20 ${isEditingThis ? 'top-4' : 'top-6'}`}>
                                                         {isEditingThis ? (
                                                             <Button
                                                                 variant="success"
@@ -516,7 +872,7 @@ function DatasetViewer({ onLogout, isAdmin }) {
                                                                         <div className="flex justify-between items-center mb-3">
                                                                             <div className="flex items-center gap-2">
                                                                                 <select
-                                                                                    value={msg.role}
+                                                                                    value={msg.role || 'user'}
                                                                                     onChange={(e) => updateTempMessage(msgIdx, 'role', e.target.value)}
                                                                                     className="font-bold uppercase bg-transparent border-b border-gray-600 text-gray-300 outline-none focus:border-white pb-1"
                                                                                 >
@@ -548,8 +904,8 @@ function DatasetViewer({ onLogout, isAdmin }) {
                                                                         {msg.thinking !== null && (
                                                                             <div className="mb-3">
                                                                                 <label className="block text-xs font-bold text-yellow-600/80 mb-1 uppercase tracking-wider">Thinking Process</label>
-                                                                                <textarea
-                                                                                    value={msg.thinking}
+                                                                                <AutoResizeTextarea
+                                                                                    value={msg.thinking || ''}
                                                                                     onChange={(e) => updateTempMessage(msgIdx, 'thinking', e.target.value)}
                                                                                     className="w-full p-3 text-sm bg-yellow-900/10 text-yellow-100 border border-yellow-900/30 rounded focus:border-yellow-700 outline-none min-h-[60px]"
                                                                                     placeholder="Add thinking process..."
@@ -560,8 +916,8 @@ function DatasetViewer({ onLogout, isAdmin }) {
                                                                         {/* Content Field */}
                                                                         <div>
                                                                             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Content</label>
-                                                                            <textarea
-                                                                                value={msg.content}
+                                                                            <AutoResizeTextarea
+                                                                                value={msg.content || ''}
                                                                                 onChange={(e) => updateTempMessage(msgIdx, 'content', e.target.value)}
                                                                                 className="w-full p-3 text-[15px] leading-relaxed bg-[#121212] text-gray-300 border border-[#333] rounded focus:border-white outline-none min-h-[80px]"
                                                                                 placeholder="Message content..."
@@ -595,14 +951,14 @@ function DatasetViewer({ onLogout, isAdmin }) {
                                                         ) : (
                                                             // READ ONLY MODE
                                                             <div className="space-y-4 cursor-pointer" title="Double click to edit">
-                                                                {displayItem.messages ? (
+                                                                {Array.isArray(displayItem.messages) ? (
                                                                     displayItem.messages.map((msg, mIdx) => (
                                                                         <div key={mIdx} className={`p-4 rounded border ${msg.role === 'user' ? 'bg-[#1A2332] border-[#2A3B55] ml-8' :
                                                                             msg.role === 'assistant' ? 'bg-[#1A2E26] border-[#2A4B3D] mr-8' :
                                                                                 'bg-[#252525] border-[#333]'
                                                                             }`}>
                                                                             <div className="font-bold text-xs uppercase mb-2 flex justify-between text-gray-400">
-                                                                                <span>{msg.role}</span>
+                                                                                <span>{msg.role || 'unknown'}</span>
                                                                             </div>
                                                                             {msg.thinking !== null && (
                                                                                 <div className="mb-3 p-3 bg-yellow-900/10 border-l-2 border-yellow-700 text-sm text-yellow-200/80 italic rounded-r">
@@ -610,7 +966,7 @@ function DatasetViewer({ onLogout, isAdmin }) {
                                                                                     {msg.thinking || "(Empty thinking)"}
                                                                                 </div>
                                                                             )}
-                                                                            <div className="whitespace-pre-wrap text-gray-200 text-[15px] leading-relaxed">{msg.content}</div>
+                                                                            <div className="whitespace-pre-wrap text-gray-200 text-[15px] leading-relaxed">{msg.content || ''}</div>
                                                                         </div>
                                                                     ))
                                                                 ) : (

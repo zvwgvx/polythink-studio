@@ -10,5 +10,7 @@ DB_NAME = os.getenv("DB_NAME", "polythink_studio")
 client = MongoClient(MONGODB_URL)
 db = client[DB_NAME]
 users_collection = db["users"]
-user_datasets_collection = db["user_datasets"]
 pull_requests_collection = db["pull_requests"]
+user_datasets_collection = db["user_datasets"]
+invitation_codes_collection = db["invitation_codes"]
+

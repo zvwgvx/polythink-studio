@@ -56,7 +56,7 @@ function App() {
         <Route path="/" element={
           user ? (
             <div className="relative">
-              <DatasetViewer onLogout={handleLogout} isAdmin={user.role === 'admin'} />
+              <DatasetViewer user={user} onLogout={handleLogout} isAdmin={user.role === 'admin'} />
             </div>
           ) : (
             <Navigate to="/login" />

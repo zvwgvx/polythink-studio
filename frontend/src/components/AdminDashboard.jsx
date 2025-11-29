@@ -16,6 +16,7 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(false);
 
     // Git State
+    const [remoteUrl, setRemoteUrl] = useState('');
     const [gitLoading, setGitLoading] = useState(false);
     const [gitOutput, setGitOutput] = useState('');
 
@@ -23,8 +24,13 @@ const AdminDashboard = () => {
     const [diffData, setDiffData] = useState(null);
     const [showDiffModal, setShowDiffModal] = useState(false);
 
+    const [invites, setInvites] = useState([]);
+
     useEffect(() => {
-        if (activeTab === 'users') loadUsers();
+        if (activeTab === 'users') {
+            loadUsers();
+            loadInvites();
+        }
         if (activeTab === 'prs') loadPRs();
         if (activeTab === 'repo') loadGitConfig();
     }, [activeTab]);
@@ -35,6 +41,15 @@ const AdminDashboard = () => {
             setUsers(data);
         } catch (err) {
             console.error('Failed to load users', err);
+        }
+    };
+
+    const loadInvites = async () => {
+        try {
+            const data = await api.getInvites();
+            setInvites(data);
+        } catch (err) {
+            console.error('Failed to load invites', err);
         }
     };
 
@@ -56,16 +71,14 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleCreateUser = async (e) => {
-        e.preventDefault();
+    const handleGenerateInvite = async () => {
+        setLoading(true);
         setError('');
         setSuccess('');
-        setLoading(true);
         try {
-            await api.createUser(newUser);
-            setSuccess('User created successfully');
-            setNewUser({ username: '', password: '', role: 'user', full_name: '', email: '' });
-            loadUsers();
+            await api.generateInvite();
+            setSuccess('New invitation code generated');
+            loadInvites();
         } catch (err) {
             setError(err.message);
         } finally {
@@ -201,15 +214,8 @@ const AdminDashboard = () => {
 
                                     <div className="p-4 font-mono text-xs overflow-x-auto">
                                         {diff.type === 'modified' ? (
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <div className="text-red-400 mb-2 font-bold text-[10px] uppercase">Original</div>
-                                                    <pre className="text-red-300/70 whitespace-pre-wrap">{JSON.stringify(diff.old_content, null, 2)}</pre>
-                                                </div>
-                                                <div>
-                                                    <div className="text-green-400 mb-2 font-bold text-[10px] uppercase">New Version (Changes Highlighted)</div>
-                                                    {renderDiff(diff.old_content, diff.new_content)}
-                                                </div>
+                                            <div>
+                                                {renderDiff(diff.old_content, diff.new_content)}
                                             </div>
                                         ) : (
                                             <pre className={`whitespace-pre-wrap ${diff.type === 'added' ? 'text-green-300' : 'text-red-300'}`}>
@@ -253,10 +259,15 @@ const AdminDashboard = () => {
                     >
                         Repository
                     </div>
-                    <Link to="/" className="block px-3 py-2 rounded text-sm text-gray-400 hover:bg-[#333] hover:text-white transition-all">
-                        Back to Studio
-                    </Link>
                 </div>
+            </div>
+
+            <div>
+                <h2 className="font-bold mb-3 text-gray-500 text-xs uppercase tracking-widest">Navigation</h2>
+                <Link to="/" className="flex items-center gap-2 px-3 py-2 rounded text-sm text-gray-400 hover:bg-[#333] hover:text-white transition-all group">
+                    <svg className="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    Back to Studio
+                </Link>
             </div>
         </div>
     );
@@ -274,71 +285,51 @@ const AdminDashboard = () => {
 
                 {activeTab === 'users' && (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Create User Form */}
+                        {/* Invitation Management */}
                         <div className="lg:col-span-1">
-                            <Card title="Create New User" className="sticky top-8">
+                            <Card title="Invitation Management" className="sticky top-8">
+                                <p className="text-gray-400 text-sm mb-4">Generate unique invitation codes for new users to register.</p>
                                 {error && <p className="text-red-400 text-sm mb-4 bg-red-900/20 p-2 rounded border border-red-800">{error}</p>}
                                 {success && <p className="text-green-400 text-sm mb-4 bg-green-900/20 p-2 rounded border border-green-800">{success}</p>}
 
-                                <form onSubmit={handleCreateUser} className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Username</label>
-                                        <input
-                                            type="text"
-                                            value={newUser.username}
-                                            onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                                            className="w-full bg-[#121212] border border-[#333] rounded p-2 text-white focus:border-white focus:outline-none text-sm"
-                                            required
-                                        />
+                                <Button
+                                    onClick={handleGenerateInvite}
+                                    variant="primary"
+                                    className="w-full mb-6"
+                                    disabled={loading}
+                                >
+                                    {loading ? 'Generating...' : 'Generate New Code'}
+                                </Button>
+
+                                <div className="space-y-3">
+                                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Recent Codes</h4>
+                                    <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                        {invites.map(invite => (
+                                            <div key={invite.code} className="bg-[#121212] border border-[#333] rounded p-3 flex justify-between items-center">
+                                                <div>
+                                                    <div className="font-mono text-lg font-bold text-white tracking-widest">{invite.code}</div>
+                                                    <div className="text-[10px] text-gray-500">
+                                                        {new Date(invite.created_at).toLocaleDateString()} • {invite.created_by}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    {invite.is_used ? (
+                                                        <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-red-900/30 text-red-200 border border-red-800">
+                                                            Used by {invite.used_by}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-green-900/30 text-green-200 border border-green-800">
+                                                            Available
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {invites.length === 0 && (
+                                            <div className="text-center text-gray-500 text-xs italic py-4">No codes generated yet.</div>
+                                        )}
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Password</label>
-                                        <input
-                                            type="password"
-                                            value={newUser.password}
-                                            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                                            className="w-full bg-[#121212] border border-[#333] rounded p-2 text-white focus:border-white focus:outline-none text-sm"
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Full Name</label>
-                                        <input
-                                            type="text"
-                                            value={newUser.full_name}
-                                            onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
-                                            className="w-full bg-[#121212] border border-[#333] rounded p-2 text-white focus:border-white focus:outline-none text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Email</label>
-                                        <input
-                                            type="email"
-                                            value={newUser.email}
-                                            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                                            className="w-full bg-[#121212] border border-[#333] rounded p-2 text-white focus:border-white focus:outline-none text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Role</label>
-                                        <select
-                                            value={newUser.role}
-                                            onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                                            className="w-full bg-[#121212] border border-[#333] rounded p-2 text-white focus:border-white focus:outline-none text-sm"
-                                        >
-                                            <option value="user">User</option>
-                                            <option value="admin">Admin</option>
-                                        </select>
-                                    </div>
-                                    <Button
-                                        type="submit"
-                                        variant="success"
-                                        className="w-full mt-2"
-                                        disabled={loading}
-                                    >
-                                        {loading ? 'Creating...' : 'Create User'}
-                                    </Button>
-                                </form>
+                                </div>
                             </Card>
                         </div>
 
@@ -352,6 +343,7 @@ const AdminDashboard = () => {
                                                 <th className="p-3 font-bold">Username</th>
                                                 <th className="p-3 font-bold">Role</th>
                                                 <th className="p-3 font-bold">Full Name</th>
+                                                <th className="p-3 font-bold">Contributions</th>
                                                 <th className="p-3 font-bold text-right">Actions</th>
                                             </tr>
                                         </thead>
@@ -368,6 +360,17 @@ const AdminDashboard = () => {
                                                         </span>
                                                     </td>
                                                     <td className="p-3 text-gray-400">{user.full_name || '-'}</td>
+                                                    <td className="p-3">
+                                                        <div className="flex items-center gap-2 text-xs">
+                                                            <span className="text-gray-300" title="Total PRs">
+                                                                {user.contribution_stats?.total_prs || 0} PRs
+                                                            </span>
+                                                            <span className="text-gray-600">•</span>
+                                                            <span className="text-green-400" title="Merged PRs">
+                                                                {user.contribution_stats?.merged_prs || 0} Merged
+                                                            </span>
+                                                        </div>
+                                                    </td>
                                                     <td className="p-3 text-right">
                                                         <Button
                                                             variant="danger"

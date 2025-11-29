@@ -1,7 +1,18 @@
 import React from 'react';
 import Button from './Button';
 
-const ConfirmModal = ({ isOpen, title, message, onConfirm, onDiscard, onCancel }) => {
+const ConfirmModal = ({
+    isOpen,
+    title,
+    message,
+    onConfirm,
+    onDiscard,
+    onCancel,
+    confirmText = "Save",
+    discardText = "Discard",
+    cancelText = "Cancel",
+    confirmVariant = "success"
+}) => {
     if (!isOpen) return null;
 
     return (
@@ -11,15 +22,21 @@ const ConfirmModal = ({ isOpen, title, message, onConfirm, onDiscard, onCancel }
                 <p className="text-gray-400 mb-6">{message}</p>
 
                 <div className="flex justify-end gap-3">
-                    <Button variant="secondary" size="md" onClick={onCancel}>
-                        Cancel
-                    </Button>
-                    <Button variant="danger" size="md" onClick={onDiscard} className="bg-red-900/20 text-red-200 border-red-900/50 hover:bg-red-900/40">
-                        Discard
-                    </Button>
-                    <Button variant="success" size="md" onClick={onConfirm}>
-                        Save
-                    </Button>
+                    {onCancel && (
+                        <Button variant="secondary" size="md" onClick={onCancel}>
+                            {cancelText}
+                        </Button>
+                    )}
+                    {onDiscard && (
+                        <Button variant="danger" size="md" onClick={onDiscard} className="bg-red-900/20 text-red-200 border-red-900/50 hover:bg-red-900/40">
+                            {discardText}
+                        </Button>
+                    )}
+                    {onConfirm && (
+                        <Button variant={confirmVariant} size="md" onClick={onConfirm}>
+                            {confirmText}
+                        </Button>
+                    )}
                 </div>
             </div>
         </div>

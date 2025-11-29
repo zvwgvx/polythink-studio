@@ -9,34 +9,54 @@ class PyObjectId(ObjectId):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, handler):
         if not ObjectId.is_valid(v):
-            raise ValueError("Invalid objectid")
+            raise ValueError("Invalid ObjectId")
         return ObjectId(v)
 
     @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(type="string")
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        return {"type": "string"}
 
-class UserBase(BaseModel):
+class User(BaseModel):
+    id: Optional[PyObjectId] = Field(None, alias="_id")
     username: str
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     full_name: Optional[str] = None
-    role: str = "user" # user, admin
-
-class UserCreate(UserBase):
-    password: str
-
-class UserInDB(UserBase):
-    hashed_password: str
-
-class User(UserBase):
-    id: Optional[str] = Field(None, alias="_id")
+    contribution_stats: Optional[dict] = None
+    role: str = "user"
+    is_active: bool = False  # Default to False until verified
+    email_verified: bool = False
+    verification_code: Optional[str] = None
+    hashed_password: Optional[str] = None
+    otp_code: Optional[str] = None
+    otp_created_at: Optional[datetime] = None
+    reset_code: Optional[str] = None
 
     class Config:
         allow_population_by_field_name = True
         arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
+        schema_extra = {
+            "example": {
+                "username": "johndoe",
+                "email": "johndoe@example.com",
+                "full_name": "John Doe",
+                "role": "user",
+                "is_active": False,
+                "email_verified": False,
+                "verification_code": "123456"
+            }
+        }
+
+class UserInDB(User):
+    hashed_password: str
+
+class UserCreate(BaseModel):
+    username: str
+    email: EmailStr
+    full_name: str
+    invitation_code: str
 
 class Token(BaseModel):
     access_token: str
@@ -44,6 +64,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+class InvitationCode(BaseModel):
+    code: str
+    created_by: str
+    is_used: bool = False
+    used_by: Optional[str] = None
+    created_at: datetime = datetime.utcnow()
 
 class UserDataset(BaseModel):
     id: Optional[str] = Field(None, alias="_id")
