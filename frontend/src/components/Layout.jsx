@@ -1,0 +1,29 @@
+const Layout = ({ children, sidebar }) => {
+    return (
+        <div className="min-h-screen bg-[#121212] flex font-mono text-[#E0E0E0]">
+            {/* Sidebar */}
+            <aside className="w-64 bg-[#1E1E1E] border-r border-[#333] flex flex-col fixed h-full overflow-y-auto">
+                <div className="p-6 border-b border-[#333] bg-[#1E1E1E]">
+                    <div className="flex items-center gap-3">
+                        <div className="flex flex-col">
+                            <h1 className="text-lg font-bold text-white leading-none tracking-tight">PolyThink</h1>
+                            <span className="text-[10px] font-bold text-gray-500 tracking-[0.2em] uppercase mt-1">Studio</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex-1 p-4">
+                    {sidebar}
+                </div>
+            </aside>
+
+            {/* Main Content */}
+            <main className="flex-1 ml-64 p-8">
+                <div className="max-w-5xl mx-auto">
+                    {children}
+                </div>
+            </main>
+        </div>
+    );
+};
+
+export default Layout;
