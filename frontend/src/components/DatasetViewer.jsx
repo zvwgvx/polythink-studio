@@ -312,7 +312,7 @@ function DatasetViewer({ user, onLogout, isAdmin }) {
         if (pages <= 1) return null;
 
         return (
-            <div className="flex justify-center items-center space-x-4 py-4 bg-[#1E1E1E] border-t border-[#333] sticky bottom-0 z-10">
+            <div className="flex justify-center items-center space-x-4 py-4 px-6 bg-[#1E1E1E] border border-[#333] rounded-lg sticky bottom-0 z-10">
                 <Button
                     variant="secondary"
                     size="sm"
@@ -758,7 +758,7 @@ function DatasetViewer({ user, onLogout, isAdmin }) {
             ) : (
                 <div className="space-y-6 pb-20">
                     {/* Header */}
-                    <div className="flex justify-between items-center sticky top-0 bg-[#121212]/95 backdrop-blur z-20 py-6 border-b border-[#333]">
+                    <div className="flex justify-between items-center sticky top-0 bg-[#121212]/95 backdrop-blur z-20 py-6 px-6 border border-[#333] rounded-lg">
                         <div className="flex flex-col">
                             <h2 className="text-2xl font-black uppercase truncate max-w-md text-white tracking-tight">{selectedDataset.name}</h2>
                             <div className="flex items-center gap-2 mt-1">
@@ -953,9 +953,9 @@ function DatasetViewer({ user, onLogout, isAdmin }) {
                                                             <div className="space-y-4 cursor-pointer" title="Double click to edit">
                                                                 {Array.isArray(displayItem.messages) ? (
                                                                     displayItem.messages.map((msg, mIdx) => (
-                                                                        <div key={mIdx} className={`p-4 rounded border ${msg.role === 'user' ? 'bg-[#1A2332] border-[#2A3B55] ml-8' :
-                                                                            msg.role === 'assistant' ? 'bg-[#1A2E26] border-[#2A4B3D] mr-8' :
-                                                                                'bg-[#252525] border-[#333]'
+                                                                        <div key={mIdx} className={`p-4 rounded border ${msg.role === 'user' ? 'bg-[#1A2332] border-[#2A3B55] ml-auto w-fit max-w-[85%]' :
+                                                                            msg.role === 'assistant' ? 'bg-[#1A2E26] border-[#2A4B3D] mr-auto w-fit max-w-[85%]' :
+                                                                                'bg-[#252525] border-[#333] w-full'
                                                                             }`}>
                                                                             <div className="font-bold text-xs uppercase mb-2 flex justify-between text-gray-400">
                                                                                 <span>{msg.role || 'unknown'}</span>
@@ -979,9 +979,6 @@ function DatasetViewer({ user, onLogout, isAdmin }) {
                                             </div>
                                         );
                                     })}
-
-                                    {/* Pagination Bottom */}
-                                    <PaginationControls totalItems={content?.length || 0} />
                                 </div>
                             )}
                         </>
