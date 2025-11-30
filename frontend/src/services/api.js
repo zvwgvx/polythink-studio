@@ -1,4 +1,6 @@
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost'
+    ? 'http://localhost:8000'
+    : `http://${window.location.hostname}:8000`);
 
 const getHeaders = () => {
     const token = localStorage.getItem('token');
