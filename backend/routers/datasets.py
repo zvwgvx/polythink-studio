@@ -9,8 +9,15 @@ from models import User, DatasetContent, UserDataset
 
 router = APIRouter()
 
-REPO_ROOT = Path(__file__).parent.parent.parent / "dataset"
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent / "dataset"
+# Fallback: if running from project root, maybe it's just ./dataset
+if not REPO_ROOT.exists():
+    REPO_ROOT = Path.cwd() / "dataset"
+
 BASE_DIR = REPO_ROOT / "dataset" if (REPO_ROOT / "dataset").exists() else REPO_ROOT
+
+print(f"DEBUG: Resolved REPO_ROOT: {REPO_ROOT}")
+print(f"DEBUG: Resolved BASE_DIR: {BASE_DIR}")
 
 @router.get("/datasets")
 async def list_datasets(current_user: User = Depends(get_current_active_user)):
