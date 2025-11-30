@@ -27,19 +27,22 @@ const Login = ({ onLogin }) => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
+    const [toast, setToast] = useState(null);
+
+    const showToast = (message, type = 'success') => {
+        setToast({ message, type });
+    };
 
     // --- Login Handlers ---
     const handleRequestLoginOtp = async (e) => {
         e.preventDefault();
-        setError('');
-        setSuccess('');
         setLoading(true);
         try {
             await api.loginRequest(email);
-            setSuccess("Login code sent! Please check your email.");
+            showToast("Login code sent! Please check your email.", "success");
             setLoginStep(2);
         } catch (err) {
-            setError(err.message);
+            showToast(err.message, "error");
         } finally {
             setLoading(false);
         }
@@ -47,14 +50,13 @@ const Login = ({ onLogin }) => {
 
     const handleVerifyLoginOtp = async (e) => {
         e.preventDefault();
-        setError('');
         setLoading(true);
         try {
             const data = await api.loginVerify(email, loginOtp);
             localStorage.setItem('token', data.access_token);
             onLogin(data);
         } catch (err) {
-            setError(err.message || 'Invalid code');
+            showToast(err.message || 'Invalid code', "error");
         } finally {
             setLoading(false);
         }
@@ -63,8 +65,6 @@ const Login = ({ onLogin }) => {
     // --- Register Handlers ---
     const handleRegister = async (e) => {
         e.preventDefault();
-        setError('');
-        setSuccess('');
         setLoading(true);
         try {
             await api.register(
@@ -73,12 +73,12 @@ const Login = ({ onLogin }) => {
                 registerData.full_name,
                 registerData.invitation_code
             );
-            setSuccess("Registration successful! Please check your email for the verification code.");
+            showToast("Registration successful! Please check your email for the verification code.", "success");
             setVerificationEmail(registerData.email);
             setShowVerification(true);
             setIsRegistering(false);
         } catch (err) {
-            setError(err.message);
+            showToast(err.message, "error");
         } finally {
             setLoading(false);
         }
@@ -86,19 +86,17 @@ const Login = ({ onLogin }) => {
 
     const handleVerifyRegistration = async (e) => {
         e.preventDefault();
-        setError('');
-        setSuccess('');
         setLoading(true);
         try {
             await api.verifyEmail(verificationEmail, verificationCode);
-            setSuccess("Email verified successfully! You can now login.");
+            showToast("Email verified successfully! You can now login.", "success");
             setShowVerification(false);
             setVerificationCode('');
             // Auto-fill email for login
             setEmail(verificationEmail);
             setLoginStep(1);
         } catch (err) {
-            setError(err.message);
+            showToast(err.message, "error");
         } finally {
             setLoading(false);
         }
@@ -162,17 +160,12 @@ const Login = ({ onLogin }) => {
 
                 {/* Main Card */}
                 <div className="bg-[#121212]/80 backdrop-blur-xl border border-[#333] rounded-2xl shadow-2xl p-8">
-                    {error && (
-                        <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 text-red-200 text-xs font-bold rounded flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            {error}
-                        </div>
-                    )}
-                    {success && (
-                        <div className="mb-6 p-3 bg-green-500/10 border border-green-500/20 text-green-200 text-xs font-bold rounded flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                            {success}
-                        </div>
+                    {toast && (
+                        <Toast
+                            message={toast.message}
+                            type={toast.type}
+                            onClose={() => setToast(null)}
+                        />
                     )}
 
                     {!isRegistering ? (
