@@ -6,12 +6,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/token': 'http://localhost:8000',
-      '/users': 'http://localhost:8000',
-      '/auth': 'http://localhost:8000',
-      '/admin': 'http://localhost:8000',
-      '/datasets': 'http://localhost:8000',
-      '/workflow': 'http://localhost:8000',
+      '/token': { target: 'http://127.0.0.1:8000', changeOrigin: true, secure: false },
+      '/users': { target: 'http://127.0.0.1:8000', changeOrigin: true, secure: false },
+      '/auth': { target: 'http://127.0.0.1:8000', changeOrigin: true, secure: false },
+      '/admin': { target: 'http://127.0.0.1:8000', changeOrigin: true, secure: false },
+      '/datasets': { target: 'http://127.0.0.1:8000', changeOrigin: true, secure: false },
+      '/workflow': { target: 'http://127.0.0.1:8000', changeOrigin: true, secure: false },
     }
   }
 })
