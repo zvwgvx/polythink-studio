@@ -18,16 +18,23 @@ async def list_datasets(current_user: User = Depends(get_current_active_user)):
     if not BASE_DIR.exists():
         return {"datasets": []}
 
+    print(f"DEBUG: REPO_ROOT={REPO_ROOT}")
+    print(f"DEBUG: BASE_DIR={BASE_DIR}")
+    
     for turn_type in ['multi-turn', 'single-turn']:
         turn_dir = BASE_DIR / turn_type
+        print(f"DEBUG: Checking {turn_dir}, exists={turn_dir.exists()}")
         if turn_dir.exists():
             for file_path in turn_dir.glob('*.json'):
+                print(f"DEBUG: Found file {file_path}")
                 datasets.append({
                     "path": f"{turn_type}/{file_path.name}",
                     "name": file_path.stem.replace('_', ' ').title(),
                     "type": turn_type
                 })
     
+    print(f"DEBUG: Total datasets found: {len(datasets)}")
+
     # Filter based on permissions
     if current_user.role != "admin":
         allowed = set(current_user.allowed_datasets)
