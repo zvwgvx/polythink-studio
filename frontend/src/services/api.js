@@ -1,6 +1,10 @@
-// FORCE relative path to ensure proxy usage
-const API_URL = '';
-console.log('Using API_URL:', API_URL); // Debug log
+// Smart API URL: use proxy in dev, direct backend in production
+const API_URL = import.meta.env.VITE_API_URL || (
+    import.meta.env.DEV
+        ? '' // Use Vite proxy in development
+        : `${window.location.protocol}//${window.location.hostname}:8000` // Direct backend in production
+);
+console.log('Using API_URL:', API_URL, 'Mode:', import.meta.env.DEV ? 'dev' : 'production');
 
 const getHeaders = () => {
     const token = localStorage.getItem('token');
