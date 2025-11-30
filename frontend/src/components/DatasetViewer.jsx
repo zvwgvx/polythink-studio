@@ -524,7 +524,7 @@ const DatasetViewer = ({ user, onLogout, isAdmin }) => {
 
 
     return (
-        <Layout sidebar={Sidebar} onLogoClick={() => setSelectedDataset(null)}>
+        <Layout sidebar={Sidebar} onBrandClick={() => setSelectedDataset(null)}>
             {toast && (
                 <Toast
                     message={toast.message}
