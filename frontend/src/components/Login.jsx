@@ -159,8 +159,11 @@ const Login = ({ onLogin }) => {
             <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none"></div>
 
             <div className="w-full max-w-md p-6 relative z-10 animate-fade-in-up">
-                {/* Logo / Brand Area - REMOVED */}
-                {/* Logo / Brand Area - REMOVED */}
+                {/* Logo / Brand Area */}
+                <div className="text-center mb-10">
+                    <h1 className="text-4xl font-black text-white tracking-tighter mb-2">PolyThink</h1>
+                    <p className="text-gray-500 text-xs font-bold uppercase tracking-[0.3em]">Studio Access</p>
+                </div>
 
                 {/* Main Card */}
                 <div className="bg-[#121212]/80 backdrop-blur-xl border border-[#333] rounded-2xl shadow-2xl p-8">
