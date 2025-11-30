@@ -147,6 +147,13 @@ const Login = ({ onLogin }) => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] relative overflow-hidden font-mono text-[#E0E0E0]">
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
             {/* Ambient Background Effects */}
             <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] pointer-events-none"></div>
             <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-900/10 rounded-full blur-[120px] pointer-events-none"></div>
@@ -160,13 +167,6 @@ const Login = ({ onLogin }) => {
 
                 {/* Main Card */}
                 <div className="bg-[#121212]/80 backdrop-blur-xl border border-[#333] rounded-2xl shadow-2xl p-8">
-                    {toast && (
-                        <Toast
-                            message={toast.message}
-                            type={toast.type}
-                            onClose={() => setToast(null)}
-                        />
-                    )}
 
                     {!isRegistering ? (
                         // --- LOGIN VIEW ---
