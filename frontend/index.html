@@ -9,7 +9,101 @@
 </head>
 
 <body style="background-color: #0a0a0a; margin: 0;">
+  <style>
+    .initial-loader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #0a0a0a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.5s ease-out;
+    }
+
+    .initial-loader.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loader-logo {
+      width: 120px;
+      height: 120px;
+      object-fit: contain;
+      animation: pulse-logo 2s infinite ease-in-out;
+      filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.3));
+    }
+
+    .loader-spinner {
+      width: 40px;
+      height: 40px;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-top: 2rem;
+    }
+
+    .loader-text {
+      margin-top: 1rem;
+      color: #6b7280;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.875rem;
+      animation: pulse-text 2s infinite ease-in-out;
+    }
+
+    @keyframes pulse-logo {
+
+      0%,
+      100% {
+        transform: scale(1);
+        opacity: 0.8;
+      }
+
+      50% {
+        transform: scale(1.05);
+        opacity: 1;
+      }
+    }
+
+    @keyframes pulse-text {
+
+      0%,
+      100% {
+        opacity: 0.5;
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+  <div id="initial-loader" class="initial-loader">
+    <img src="/logo.png" class="loader-logo" alt="PolyThink" />
+    <div class="loader-spinner"></div>
+    <div class="loader-text">INITIALIZING STUDIO...</div>
+  </div>
   <div id="root"></div>
+  <script>
+    // Remove loader when React mounts and removes this script's parent or when we manually hide it
+    // Actually, React will empty #root, but this loader is OUTSIDE #root.
+    // We need App.jsx to hide it, or we hide it on window load.
+    window.addEventListener('load', () => {
+      // Optional: wait a bit or let React handle it.
+      // For now, let's leave it. React App will mount into #root.
+      // We can add a class to fade it out from React.
+    });
+  </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 
