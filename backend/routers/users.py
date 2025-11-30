@@ -82,10 +82,33 @@ async def register_user(user: UserCreate, background_tasks: BackgroundTasks):
     validate_email_domain(user.email)
 
     # 2. Check Username/Email existence
-    if users_collection.find_one({"username": user.username}):
-        raise HTTPException(status_code=400, detail="Username already registered")
-    if users_collection.find_one({"email": user.email}):
-        raise HTTPException(status_code=400, detail="Email already registered")
+    existing_user_username = users_collection.find_one({"username": user.username})
+    if existing_user_username:
+        if not existing_user_username.get("is_active"):
+            # Resend verification if inactive
+            verification_code = secrets.token_hex(3).upper()
+            users_collection.update_one(
+                {"username": user.username},
+                {"$set": {"verification_code": verification_code, "email": user.email, "full_name": user.full_name}}
+            )
+            background_tasks.add_task(send_verification_email, user.email, verification_code)
+            return User(**existing_user_username)
+        else:
+            raise HTTPException(status_code=400, detail="Username already registered")
+
+    existing_user_email = users_collection.find_one({"email": user.email})
+    if existing_user_email:
+        if not existing_user_email.get("is_active"):
+             # Resend verification if inactive
+            verification_code = secrets.token_hex(3).upper()
+            users_collection.update_one(
+                {"email": user.email},
+                {"$set": {"verification_code": verification_code, "username": user.username, "full_name": user.full_name}}
+            )
+            background_tasks.add_task(send_verification_email, user.email, verification_code)
+            return User(**existing_user_email)
+        else:
+            raise HTTPException(status_code=400, detail="Email already registered")
 
     # 3. Validate Invitation Code
     role = "user"
