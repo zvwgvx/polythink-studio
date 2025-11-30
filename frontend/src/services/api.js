@@ -1,6 +1,6 @@
-// Use relative path so requests go to the same origin (Vite dev server)
-// which then proxies them to the backend.
-const API_URL = import.meta.env.VITE_API_URL || '';
+// FORCE relative path to ensure proxy usage
+const API_URL = '';
+console.log('Using API_URL:', API_URL); // Debug log
 
 const getHeaders = () => {
     const token = localStorage.getItem('token');
