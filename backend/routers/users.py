@@ -159,7 +159,21 @@ class VerifyEmailRequest(BaseModel):
     email: str
     code: str
 
-
+@router.post("/auth/verify")
+async def verify_email(request: VerifyEmailRequest):
+    user = users_collection.find_one({"email": request.email})
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid email")
+        
+    if user.get("verification_code") != request.code:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+        
+    users_collection.update_one(
+        {"email": request.email},
+        {"$set": {"email_verified": True, "is_active": True, "verification_code": None}}
+    )
+    
+    return {"message": "Email verified successfully"}
 @router.get("/users/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
     # Calculate stats
