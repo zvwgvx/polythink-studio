@@ -130,11 +130,15 @@ def send_login_otp_email(to_email: str, code: str):
     message.attach(MIMEText(html_content, "html"))
     
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(message)
-            print(f"Login OTP email sent successfully to {to_email}")
+        print(f"Attempting to send login OTP to {to_email}...")
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.ehlo() # Explicitly identify ourselves
+        server.starttls() # Secure the connection
+        server.ehlo() # Re-identify as encrypted
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.sendmail(SENDER_EMAIL, to_email, message.as_string())
+        server.quit()
+        print(f"Login OTP email sent successfully to {to_email}")
     except Exception as e:
         print(f"Failed to send login OTP email: {e}")
         raise e
