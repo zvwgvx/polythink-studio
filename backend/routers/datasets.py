@@ -27,6 +27,12 @@ async def list_datasets(current_user: User = Depends(get_current_active_user)):
                     "name": file_path.stem.replace('_', ' ').title(),
                     "type": turn_type
                 })
+    
+    # Filter based on permissions
+    if current_user.role != "admin":
+        allowed = set(current_user.allowed_datasets)
+        datasets = [d for d in datasets if d["path"] in allowed]
+
     return {"datasets": datasets}
 
 @router.get("/datasets/{turn_type}/{filename}")

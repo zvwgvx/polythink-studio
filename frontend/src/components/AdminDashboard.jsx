@@ -31,6 +31,10 @@ const AdminDashboard = ({ onLogout }) => {
     const [selectedUserStats, setSelectedUserStats] = useState(null);
     const [showUserStatsModal, setShowUserStatsModal] = useState(false);
 
+    // Permission Modal State
+    const [showPermissionModal, setShowPermissionModal] = useState(false);
+    const [selectedUserForPermissions, setSelectedUserForPermissions] = useState(null);
+
     // Confirm Modal State
     const [modalConfig, setModalConfig] = useState({
         isOpen: false,
@@ -418,6 +422,106 @@ const AdminDashboard = ({ onLogout }) => {
         );
     };
 
+    const PermissionModal = () => {
+        if (!showPermissionModal || !selectedUserForPermissions) return null;
+
+        const [selectedDatasets, setSelectedDatasets] = useState(selectedUserForPermissions.allowed_datasets || []);
+        const [availableDatasets, setAvailableDatasets] = useState([]);
+        const [loadingDatasets, setLoadingDatasets] = useState(false);
+
+        useEffect(() => {
+            const fetchDatasets = async () => {
+                setLoadingDatasets(true);
+                try {
+                    const data = await api.getDatasets();
+                    setAvailableDatasets(data.datasets);
+                } catch (err) {
+                    showToast("Failed to load datasets", "error");
+                } finally {
+                    setLoadingDatasets(false);
+                }
+            };
+            fetchDatasets();
+        }, []);
+
+        const toggleDataset = (path) => {
+            setSelectedDatasets(prev =>
+                prev.includes(path)
+                    ? prev.filter(p => p !== path)
+                    : [...prev, path]
+            );
+        };
+
+        const handleSave = async () => {
+            setLoading(true);
+            try {
+                await api.updateUserPermissions(selectedUserForPermissions.username, selectedDatasets);
+                showToast("Permissions updated successfully", "success");
+                setShowPermissionModal(false);
+                loadUsers(); // Reload to update local state
+            } catch (err) {
+                showToast("Failed to save permissions: " + err.message, "error");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        return (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-[#1E1E1E] border border-[#333] rounded-lg w-full max-w-2xl flex flex-col shadow-2xl animate-fade-in-up">
+                    <div className="p-6 border-b border-[#333] flex justify-between items-center bg-[#252525] rounded-t-lg">
+                        <h3 className="text-xl font-bold text-white">Manage Permissions: {selectedUserForPermissions.username}</h3>
+                        <button onClick={() => setShowPermissionModal(false)} className="text-gray-400 hover:text-white">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <div className="p-6 max-h-[60vh] overflow-y-auto">
+                        <p className="text-gray-400 text-sm mb-4">Select the datasets this user is allowed to view and edit.</p>
+
+                        {loadingDatasets ? (
+                            <div className="text-center py-8 text-gray-500">Loading datasets...</div>
+                        ) : (
+                            <div className="space-y-2">
+                                {availableDatasets.map(ds => (
+                                    <div
+                                        key={ds.path}
+                                        className={`p-3 rounded border cursor-pointer flex items-center justify-between transition-all ${selectedDatasets.includes(ds.path)
+                                            ? 'bg-blue-900/20 border-blue-800'
+                                            : 'bg-[#121212] border-[#333] hover:border-gray-600'
+                                            }`}
+                                        onClick={() => toggleDataset(ds.path)}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedDatasets.includes(ds.path)
+                                                ? 'bg-blue-500 border-blue-500 text-white'
+                                                : 'border-gray-600 bg-[#333]'
+                                                }`}>
+                                                {selectedDatasets.includes(ds.path) && (
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-white text-sm">{ds.name}</div>
+                                                <div className="text-xs text-gray-500">{ds.path}</div>
+                                            </div>
+                                        </div>
+                                        <span className="text-xs font-bold uppercase text-gray-600 bg-[#222] px-2 py-1 rounded">{ds.type}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="p-4 border-t border-[#333] bg-[#252525] flex justify-end gap-3 rounded-b-lg">
+                        <Button variant="secondary" onClick={() => setShowPermissionModal(false)}>Cancel</Button>
+                        <Button variant="primary" onClick={handleSave} disabled={loading}>Save Permissions</Button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const Sidebar = (
         <div className="flex flex-col h-full">
             <div className="space-y-8 flex-1 overflow-y-auto">
@@ -486,6 +590,7 @@ const AdminDashboard = ({ onLogout }) => {
             />
             <DiffModal />
             <UserStatsModal />
+            <PermissionModal />
             <div className="space-y-8">
                 <div className="flex justify-between items-center border-b border-[#333] pb-6">
                     <h2 className="text-2xl font-black text-white tracking-tight uppercase">
@@ -601,16 +706,29 @@ const AdminDashboard = ({ onLogout }) => {
                                                         </div>
                                                     </td>
                                                     <td className="p-3 text-right">
-                                                        <Button
-                                                            variant="danger"
-                                                            size="xs"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleDeleteUser(user.username);
-                                                            }}
-                                                        >
-                                                            Delete
-                                                        </Button>
+                                                        <div className="flex justify-end gap-2">
+                                                            <Button
+                                                                variant="secondary"
+                                                                size="xs"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedUserForPermissions(user);
+                                                                    setShowPermissionModal(true);
+                                                                }}
+                                                            >
+                                                                Permissions
+                                                            </Button>
+                                                            <Button
+                                                                variant="danger"
+                                                                size="xs"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteUser(user.username);
+                                                                }}
+                                                            >
+                                                                Delete
+                                                            </Button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}

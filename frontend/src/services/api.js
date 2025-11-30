@@ -143,6 +143,16 @@ export const api = {
         return response.json();
     },
 
+    updateUserPermissions: async (username, allowedDatasets) => {
+        const response = await fetch(`${API_URL}/users/${username}/permissions`, {
+            method: 'PUT',
+            headers: getHeaders(),
+            body: JSON.stringify({ allowed_datasets: allowedDatasets }),
+        });
+        if (!response.ok) throw new Error('Failed to update permissions');
+        return response.json();
+    },
+
     deleteUser: async (username) => {
         const response = await fetch(`${API_URL}/users/${username}`, {
             method: 'DELETE',

@@ -33,6 +33,7 @@ class User(BaseModel):
     otp_code: Optional[str] = None
     otp_created_at: Optional[datetime] = None
     reset_code: Optional[str] = None
+    allowed_datasets: List[str] = Field(default_factory=list)
 
     class Config:
         allow_population_by_field_name = True

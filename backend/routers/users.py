@@ -327,3 +327,22 @@ async def get_user_stats(username: str, current_user: User = Depends(get_current
     }
     
     return target_user
+
+class UserPermissionsUpdate(BaseModel):
+    allowed_datasets: List[str]
+
+@router.put("/users/{username}/permissions")
+async def update_user_permissions(
+    username: str, 
+    permissions: UserPermissionsUpdate,
+    current_user: User = Depends(get_current_admin_user)
+):
+    result = users_collection.update_one(
+        {"username": username},
+        {"$set": {"allowed_datasets": permissions.allowed_datasets}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    return {"status": "success", "message": "Permissions updated"}
