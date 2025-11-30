@@ -57,7 +57,12 @@ const ContributionGraph = ({ stats, summary }) => {
 
     const handleMouseMove = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left;
+
+        // Calculate scale factor (SVG viewBox width / actual rendered width)
+        const scaleX = width / rect.width;
+
+        // Calculate X position relative to SVG coordinate system
+        const x = (e.clientX - rect.left) * scaleX;
 
         // Find nearest index
         const rawIndex = ((x - padding) / chartWidth) * (stats.length - 1);
@@ -83,11 +88,11 @@ const ContributionGraph = ({ stats, summary }) => {
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-1 bg-green-400 rounded-full"></div>
-                        <span className="text-green-400">Merged</span>
+                        <span className="text-green-400">Accepted Samples</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-1 bg-red-400 rounded-full"></div>
-                        <span className="text-red-400">Rejected</span>
+                        <span className="text-red-400">Rejected Samples</span>
                     </div>
                 </div>
             </div>
@@ -213,7 +218,7 @@ const ContributionGraph = ({ stats, summary }) => {
                                 </g>
                                 <g transform="translate(10, 55)">
                                     <circle cx="4" cy="-3" r="3" fill="#4ADE80" />
-                                    <text x="15" y="0" className="fill-gray-300 text-[10px] font-mono">Merged: {hoveredData.merged}</text>
+                                    <text x="15" y="0" className="fill-gray-300 text-[10px] font-mono">Accepted: {hoveredData.merged}</text>
                                 </g>
                                 <g transform="translate(10, 70)">
                                     <circle cx="4" cy="-3" r="3" fill="#F87171" />

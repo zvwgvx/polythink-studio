@@ -5,16 +5,17 @@ import Layout from './Layout';
 import Card from './Card';
 import Button from './Button';
 import ContributionGraph from './ContributionGraph';
+import ConfirmModal from './ConfirmModal';
+import Toast from './Toast';
 import { diffJson } from 'diff';
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ onLogout }) => {
     const [activeTab, setActiveTab] = useState('users'); // 'users', 'prs', 'repo'
     const [users, setUsers] = useState([]);
     const [prs, setPrs] = useState([]);
     const [newUser, setNewUser] = useState({ username: '', password: '', role: 'user', full_name: '', email: '' });
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
+    const [toast, setToast] = useState(null);
 
     // Git State
     const [remoteUrl, setRemoteUrl] = useState('');
@@ -24,10 +25,22 @@ const AdminDashboard = () => {
     // Diff State
     const [diffData, setDiffData] = useState(null);
     const [showDiffModal, setShowDiffModal] = useState(false);
+    const [currentPRId, setCurrentPRId] = useState(null);
 
     // User Stats Modal
     const [selectedUserStats, setSelectedUserStats] = useState(null);
     const [showUserStatsModal, setShowUserStatsModal] = useState(false);
+
+    // Confirm Modal State
+    const [modalConfig, setModalConfig] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: null,
+        onCancel: null,
+        confirmText: 'Confirm',
+        confirmVariant: 'danger'
+    });
 
     const [invites, setInvites] = useState([]);
 
@@ -39,6 +52,10 @@ const AdminDashboard = () => {
         if (activeTab === 'prs') loadPRs();
         if (activeTab === 'repo') loadGitConfig();
     }, [activeTab]);
+
+    const showToast = (message, type = 'success') => {
+        setToast({ message, type });
+    };
 
     const loadUsers = async () => {
         try {
@@ -78,37 +95,57 @@ const AdminDashboard = () => {
 
     const handleGenerateInvite = async () => {
         setLoading(true);
-        setError('');
-        setSuccess('');
         try {
             await api.generateInvite();
-            setSuccess('New invitation code generated');
+            showToast('New invitation code generated', 'success');
             loadInvites();
         } catch (err) {
-            setError(err.message);
+            showToast(err.message, 'error');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleDeleteUser = async (username) => {
-        if (!window.confirm(`Are you sure you want to delete user ${username}?`)) return;
-        try {
-            await api.deleteUser(username);
-            loadUsers();
-        } catch (err) {
-            alert('Failed to delete user');
-        }
+    const handleDeleteUser = (username) => {
+        setModalConfig({
+            isOpen: true,
+            title: 'Delete User',
+            message: `Are you sure you want to delete user ${username}?`,
+            confirmText: 'Delete',
+            confirmVariant: 'danger',
+            onConfirm: async () => {
+                try {
+                    await api.deleteUser(username);
+                    loadUsers();
+                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                    showToast(`User ${username} deleted`, 'success');
+                } catch (err) {
+                    showToast('Failed to delete user', 'error');
+                }
+            },
+            onCancel: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+        });
     };
 
-    const handleDeleteInvite = async (code) => {
-        if (!window.confirm(`Are you sure you want to cancel invitation code ${code}?`)) return;
-        try {
-            await api.deleteInvite(code);
-            loadInvites();
-        } catch (err) {
-            alert('Failed to delete invite: ' + err.message);
-        }
+    const handleDeleteInvite = (code) => {
+        setModalConfig({
+            isOpen: true,
+            title: 'Cancel Invitation',
+            message: `Are you sure you want to cancel invitation code ${code}?`,
+            confirmText: 'Cancel Invite',
+            confirmVariant: 'danger',
+            onConfirm: async () => {
+                try {
+                    await api.deleteInvite(code);
+                    loadInvites();
+                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                    showToast('Invitation cancelled', 'success');
+                } catch (err) {
+                    showToast('Failed to delete invite: ' + err.message, 'error');
+                }
+            },
+            onCancel: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+        });
     };
 
     const handleViewUserStats = async (username) => {
@@ -118,40 +155,61 @@ const AdminDashboard = () => {
             setSelectedUserStats(data);
             setShowUserStatsModal(true);
         } catch (err) {
-            alert('Failed to load user stats: ' + err.message);
+            showToast('Failed to load user stats: ' + err.message, 'error');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleMergePR = async (prId) => {
-        if (!window.confirm("Are you sure you want to merge this PR? This will overwrite the main dataset file.")) return;
-        try {
-            await api.mergePR(prId);
-            loadPRs();
-            alert("PR Merged Successfully!");
-        } catch (err) {
-            alert("Failed to merge PR: " + err.message);
-        }
+    const handleMergePR = (prId) => {
+        setModalConfig({
+            isOpen: true,
+            title: 'Merge Pull Request',
+            message: "Are you sure you want to merge this PR? This will overwrite the main dataset file.",
+            confirmText: 'Merge',
+            confirmVariant: 'success',
+            onConfirm: async () => {
+                try {
+                    await api.mergePR(prId);
+                    loadPRs();
+                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                    showToast("PR Merged Successfully!", 'success');
+                } catch (err) {
+                    showToast("Failed to merge PR: " + err.message, 'error');
+                }
+            },
+            onCancel: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+        });
     };
 
-    const handleRejectPR = async (prId) => {
-        if (!window.confirm("Are you sure you want to reject this PR?")) return;
-        try {
-            await api.rejectPR(prId);
-            loadPRs();
-        } catch (err) {
-            alert("Failed to reject PR: " + err.message);
-        }
+    const handleRejectPR = (prId) => {
+        setModalConfig({
+            isOpen: true,
+            title: 'Reject Pull Request',
+            message: "Are you sure you want to reject this PR?",
+            confirmText: 'Reject',
+            confirmVariant: 'danger',
+            onConfirm: async () => {
+                try {
+                    await api.rejectPR(prId);
+                    loadPRs();
+                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                    showToast("PR Rejected", 'success');
+                } catch (err) {
+                    showToast("Failed to reject PR: " + err.message, 'error');
+                }
+            },
+            onCancel: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+        });
     };
 
     const handleSaveRemote = async () => {
         setGitLoading(true);
         try {
             await api.setGitConfig(remoteUrl);
-            alert("Remote URL updated successfully");
+            showToast("Remote URL updated successfully", 'success');
         } catch (err) {
-            alert("Failed to update remote: " + err.message);
+            showToast("Failed to update remote: " + err.message, 'error');
         } finally {
             setGitLoading(false);
         }
@@ -188,9 +246,10 @@ const AdminDashboard = () => {
         try {
             const data = await api.getPRDiff(prId);
             setDiffData(data);
+            setCurrentPRId(prId);
             setShowDiffModal(true);
         } catch (err) {
-            alert("Failed to load diff: " + err.message);
+            showToast("Failed to load diff: " + err.message, 'error');
         } finally {
             setLoading(false);
         }
@@ -199,6 +258,39 @@ const AdminDashboard = () => {
     // Diff Modal Component
     const DiffModal = () => {
         if (!showDiffModal || !diffData) return null;
+
+        const [acceptedIndices, setAcceptedIndices] = useState([]);
+
+        useEffect(() => {
+            if (diffData) {
+                // Default to all selected
+                const allIndices = diffData.diffs.map(d => d.index);
+                setAcceptedIndices(allIndices);
+            }
+        }, [diffData]);
+
+        const toggleIndex = (index) => {
+            setAcceptedIndices(prev =>
+                prev.includes(index)
+                    ? prev.filter(i => i !== index)
+                    : [...prev, index]
+            );
+        };
+
+        const handleProcessPR = async () => {
+            if (!currentPRId) return;
+            setLoading(true);
+            try {
+                await api.processPR(currentPRId, acceptedIndices);
+                showToast(`PR Processed. ${acceptedIndices.length} samples accepted.`, 'success');
+                setShowDiffModal(false);
+                loadPRs();
+            } catch (err) {
+                showToast("Failed to process PR: " + err.message, 'error');
+            } finally {
+                setLoading(false);
+            }
+        };
 
         const renderDiff = (oldObj, newObj) => {
             const diff = diffJson(oldObj, newObj);
@@ -232,12 +324,23 @@ const AdminDashboard = () => {
                             <div className="text-center text-gray-500 py-12">No differences found. The dataset is identical to the main repo.</div>
                         ) : (
                             diffData.diffs.map((diff, idx) => (
-                                <div key={idx} className="border border-[#333] rounded bg-[#121212] overflow-hidden">
-                                    <div className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b border-[#333] flex justify-between items-center ${diff.type === 'added' ? 'bg-green-900/20 text-green-400' :
-                                        diff.type === 'removed' ? 'bg-red-900/20 text-red-400' :
-                                            'bg-blue-900/20 text-blue-400'
+                                <div key={idx} className={`border rounded bg-[#121212] overflow-hidden transition-all ${acceptedIndices.includes(diff.index) ? 'border-green-800 shadow-green-900/10' : 'border-[#333] opacity-60'}`}>
+                                    <div className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b border-[#333] flex justify-between items-center ${acceptedIndices.includes(diff.index)
+                                        ? (diff.type === 'added' ? 'bg-green-900/20 text-green-400' : diff.type === 'removed' ? 'bg-red-900/20 text-red-400' : 'bg-blue-900/20 text-blue-400')
+                                        : 'bg-[#252525] text-gray-500'
                                         }`}>
-                                        <span>Item Index: {diff.index} • {diff.type}</span>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={acceptedIndices.includes(diff.index)}
+                                                onChange={() => toggleIndex(diff.index)}
+                                                className="w-4 h-4 rounded border-gray-600 text-green-500 focus:ring-green-500 bg-[#333]"
+                                            />
+                                            <span>Item Index: {diff.index} • {diff.type}</span>
+                                        </div>
+                                        <span className={acceptedIndices.includes(diff.index) ? "text-green-400" : "text-gray-500"}>
+                                            {acceptedIndices.includes(diff.index) ? "ACCEPTED" : "REJECTED"}
+                                        </span>
                                     </div>
 
                                     <div className="p-4 font-mono text-xs overflow-x-auto">
@@ -256,8 +359,16 @@ const AdminDashboard = () => {
                         )}
                     </div>
 
-                    <div className="p-4 border-t border-[#333] bg-[#252525] flex justify-end">
-                        <Button variant="secondary" onClick={() => setShowDiffModal(false)}>Close</Button>
+                    <div className="p-4 border-t border-[#333] bg-[#252525] flex justify-between items-center">
+                        <div className="text-sm text-gray-400">
+                            <span className="text-white font-bold">{acceptedIndices.length}</span> items selected to merge.
+                        </div>
+                        <div className="flex gap-3">
+                            <Button variant="secondary" onClick={() => setShowDiffModal(false)}>Close</Button>
+                            <Button variant="success" onClick={handleProcessPR} disabled={loading}>
+                                {loading ? 'Processing...' : 'Process PR'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -287,12 +398,12 @@ const AdminDashboard = () => {
                                 <div className="text-2xl font-bold text-blue-400">{selectedUserStats.contribution_stats?.total_prs || 0}</div>
                             </div>
                             <div className="bg-[#121212] p-4 rounded border border-[#333]">
-                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Merged</div>
-                                <div className="text-2xl font-bold text-green-400">{selectedUserStats.contribution_stats?.merged_prs || 0}</div>
+                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Accepted Samples</div>
+                                <div className="text-2xl font-bold text-green-400">{selectedUserStats.sample_stats?.accepted || 0}</div>
                             </div>
                             <div className="bg-[#121212] p-4 rounded border border-[#333]">
-                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Rejected</div>
-                                <div className="text-2xl font-bold text-red-400">{selectedUserStats.contribution_stats?.rejected_prs || 0}</div>
+                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Rejected Samples</div>
+                                <div className="text-2xl font-bold text-red-400">{selectedUserStats.sample_stats?.rejected || 0}</div>
                             </div>
                         </div>
 
@@ -308,43 +419,71 @@ const AdminDashboard = () => {
     };
 
     const Sidebar = (
-        <div className="space-y-8">
-            <div>
-                <h2 className="font-bold mb-3 text-gray-500 text-xs uppercase tracking-widest">Admin Controls</h2>
-                <div className="space-y-1">
-                    <div
-                        onClick={() => setActiveTab('users')}
-                        className={`px-3 py-2 rounded text-sm font-bold cursor-pointer transition-all ${activeTab === 'users' ? 'bg-white text-black' : 'text-gray-400 hover:bg-[#333] hover:text-white'}`}
-                    >
-                        User Management
-                    </div>
-                    <div
-                        onClick={() => setActiveTab('prs')}
-                        className={`px-3 py-2 rounded text-sm font-bold cursor-pointer transition-all ${activeTab === 'prs' ? 'bg-white text-black' : 'text-gray-400 hover:bg-[#333] hover:text-white'}`}
-                    >
-                        Pull Requests
-                    </div>
-                    <div
-                        onClick={() => setActiveTab('repo')}
-                        className={`px-3 py-2 rounded text-sm font-bold cursor-pointer transition-all ${activeTab === 'repo' ? 'bg-white text-black' : 'text-gray-400 hover:bg-[#333] hover:text-white'}`}
-                    >
-                        Repository
+        <div className="flex flex-col h-full">
+            <div className="space-y-8 flex-1 overflow-y-auto">
+                <div>
+                    <h2 className="font-bold mb-3 text-gray-500 text-xs uppercase tracking-widest">Admin Controls</h2>
+                    <div className="space-y-1">
+                        <div
+                            onClick={() => setActiveTab('users')}
+                            className={`px-3 py-2 rounded text-sm font-bold cursor-pointer transition-all ${activeTab === 'users' ? 'bg-white text-black' : 'text-gray-400 hover:bg-[#333] hover:text-white'}`}
+                        >
+                            User Management
+                        </div>
+                        <div
+                            onClick={() => setActiveTab('prs')}
+                            className={`px-3 py-2 rounded text-sm font-bold cursor-pointer transition-all ${activeTab === 'prs' ? 'bg-white text-black' : 'text-gray-400 hover:bg-[#333] hover:text-white'}`}
+                        >
+                            Pull Requests
+                        </div>
+                        <div
+                            onClick={() => setActiveTab('repo')}
+                            className={`px-3 py-2 rounded text-sm font-bold cursor-pointer transition-all ${activeTab === 'repo' ? 'bg-white text-black' : 'text-gray-400 hover:bg-[#333] hover:text-white'}`}
+                        >
+                            Repository
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div>
-                <h2 className="font-bold mb-3 text-gray-500 text-xs uppercase tracking-widest">Navigation</h2>
-                <Link to="/" className="flex items-center gap-2 px-3 py-2 rounded text-sm text-gray-400 hover:bg-[#333] hover:text-white transition-all group">
-                    <svg className="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                    Back to Studio
+            <div className="pt-4 mt-auto border-t border-[#333] space-y-2">
+                <Link to="/" className="w-full flex items-center gap-3 px-3 py-2 text-purple-400 hover:text-white hover:bg-purple-900/20 rounded transition-all group">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    <span className="text-sm font-bold">Back to Studio</span>
                 </Link>
+                <button
+                    onClick={onLogout}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-gray-300 hover:bg-[#333] rounded transition-all group"
+                >
+                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span className="text-sm font-medium">Sign Out</span>
+                </button>
             </div>
         </div>
     );
 
     return (
         <Layout sidebar={Sidebar}>
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
+            <ConfirmModal
+                isOpen={modalConfig.isOpen}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                onConfirm={modalConfig.onConfirm}
+                onCancel={modalConfig.onCancel}
+                confirmText={modalConfig.confirmText}
+                confirmVariant={modalConfig.confirmVariant}
+            />
             <DiffModal />
             <UserStatsModal />
             <div className="space-y-8">
@@ -361,8 +500,6 @@ const AdminDashboard = () => {
                         <div className="lg:col-span-1">
                             <Card title="Invitation Management" className="sticky top-8">
                                 <p className="text-gray-400 text-sm mb-4">Generate unique invitation codes for new users to register.</p>
-                                {error && <p className="text-red-400 text-sm mb-4 bg-red-900/20 p-2 rounded border border-red-800">{error}</p>}
-                                {success && <p className="text-green-400 text-sm mb-4 bg-green-900/20 p-2 rounded border border-green-800">{success}</p>}
 
                                 <Button
                                     onClick={handleGenerateInvite}
@@ -458,8 +595,8 @@ const AdminDashboard = () => {
                                                                 {user.contribution_stats?.total_prs || 0} PRs
                                                             </span>
                                                             <span className="text-gray-600">•</span>
-                                                            <span className="text-green-400" title="Merged PRs">
-                                                                {user.contribution_stats?.merged_prs || 0} Merged
+                                                            <span className="text-green-400" title="Accepted Samples">
+                                                                {user.sample_stats?.accepted || 0} Samples
                                                             </span>
                                                         </div>
                                                     </td>

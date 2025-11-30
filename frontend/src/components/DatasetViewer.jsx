@@ -293,7 +293,14 @@ const DatasetViewer = ({ user, onLogout, isAdmin }) => {
 
             // Create new content array with updated item
             const newContent = [...content];
-            newContent[editingItemIndex] = tempItemData;
+
+            // Add attribution
+            const updatedItem = {
+                ...tempItemData,
+                last_edited_by: user.username
+            };
+
+            newContent[editingItemIndex] = updatedItem;
 
             await api.saveDatasetContent(selectedDataset.type, filename, newContent);
 
@@ -517,7 +524,7 @@ const DatasetViewer = ({ user, onLogout, isAdmin }) => {
 
 
     return (
-        <Layout sidebar={Sidebar}>
+        <Layout sidebar={Sidebar} onLogoClick={() => setSelectedDataset(null)}>
             {toast && (
                 <Toast
                     message={toast.message}
@@ -563,14 +570,14 @@ const DatasetViewer = ({ user, onLogout, isAdmin }) => {
                             <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total Pull Requests</div>
                         </Card>
                         <Card className="text-center py-4 bg-gradient-to-br from-[#1E1E1E] to-[#121212]">
-                            <div className="text-4xl font-black text-green-400 mb-2">{user?.contribution_stats?.merged_prs || 0}</div>
-                            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Merged Contributions</div>
+                            <div className="text-4xl font-black text-green-400 mb-2">{user?.sample_stats?.accepted || 0}</div>
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Accepted Samples</div>
                         </Card>
                         <Card className="text-center py-4 bg-gradient-to-br from-[#1E1E1E] to-[#121212]">
                             <div className="text-4xl font-black text-red-400 mb-2">
-                                {user?.contribution_stats?.rejected_prs || 0}
+                                {user?.sample_stats?.rejected || 0}
                             </div>
-                            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Rejected Contributions</div>
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Rejected Samples</div>
                         </Card>
                     </div>
 
@@ -651,6 +658,14 @@ const DatasetViewer = ({ user, onLogout, isAdmin }) => {
                                                 >
                                                     {/* Edit Header Actions */}
                                                     <div className={`absolute right-6 flex gap-2 z-20 ${isEditingThis ? 'top-4' : 'top-6'}`}>
+                                                        {/* Attribution */}
+                                                        {!isEditingThis && displayItem.last_edited_by && (
+                                                            <div className="mr-4 flex items-center text-xs text-gray-500 italic">
+                                                                <span className="opacity-50 mr-1">Edited by</span>
+                                                                <span className="text-gray-400">{displayItem.last_edited_by}</span>
+                                                            </div>
+                                                        )}
+
                                                         {isEditingThis ? (
                                                             <Button
                                                                 variant="success"

@@ -47,7 +47,7 @@ function App() {
 
         <Route path="/admin" element={
           user && user.role === 'admin' ? (
-            <AdminDashboard />
+            <AdminDashboard onLogout={handleLogout} />
           ) : (
             <Navigate to="/" />
           )

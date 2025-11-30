@@ -162,16 +162,8 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
                     "$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}
                 },
                 "total": {"$sum": 1},
-                "merged": {
-                    "$sum": {
-                        "$cond": [{"$eq": ["$status", "merged"]}, 1, 0]
-                    }
-                },
-                "rejected": {
-                    "$sum": {
-                        "$cond": [{"$eq": ["$status", "rejected"]}, 1, 0]
-                    }
-                }
+                "merged": {"$sum": "$accepted_count"},
+                "rejected": {"$sum": "$rejected_count"}
             }
         }
     ]
@@ -301,16 +293,8 @@ async def get_user_stats(username: str, current_user: User = Depends(get_current
                     "$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}
                 },
                 "total": {"$sum": 1},
-                "merged": {
-                    "$sum": {
-                        "$cond": [{"$eq": ["$status", "merged"]}, 1, 0]
-                    }
-                },
-                "rejected": {
-                    "$sum": {
-                        "$cond": [{"$eq": ["$status", "rejected"]}, 1, 0]
-                    }
-                }
+                "merged": {"$sum": "$accepted_count"},
+                "rejected": {"$sum": "$rejected_count"}
             }
         }
     ]

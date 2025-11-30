@@ -24,6 +24,7 @@ class User(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     contribution_stats: Optional[dict] = None
+    sample_stats: Optional[dict] = Field(default_factory=lambda: {"accepted": 0, "rejected": 0})
     role: str = "user"
     is_active: bool = False  # Default to False until verified
     email_verified: bool = False
@@ -92,6 +93,8 @@ class PullRequest(BaseModel):
     status: str = "open" # open, merged, rejected
     created_at: datetime = Field(default_factory=datetime.utcnow)
     description: Optional[str] = None
+    accepted_count: int = 0
+    rejected_count: int = 0
 
     class Config:
         allow_population_by_field_name = True

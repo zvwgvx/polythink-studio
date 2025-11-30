@@ -245,6 +245,19 @@ export const api = {
         return response.json();
     },
 
+    processPR: async (prId, acceptedIndices) => {
+        const response = await fetch(`${API_URL}/workflow/prs/${prId}/process`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ accepted_indices: acceptedIndices }),
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to process PR');
+        }
+        return response.json();
+    },
+
     // Git API
     getGitConfig: async () => {
         const response = await fetch(`${API_URL}/workflow/git/config`, {
