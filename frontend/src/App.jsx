@@ -53,15 +53,9 @@ function App() {
     // Match the pre-loader style exactly so there is no visual jump
     return (
       <div className="fixed inset-0 bg-[#0a0a0a] flex flex-col items-center justify-center z-50">
-        <svg className="w-[120px] h-[120px] text-blue-500 animate-[pulse-logo_2s_infinite_ease-in-out] drop-shadow-[0_0_20px_rgba(59,130,246,0.3)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M10 2v7.31l-4.2 8.4A2 2 0 0 0 7.6 21h8.8a2 2 0 0 0 1.8-3.29L14 9.31V2" />
-          <path d="M8 2h8" />
-          <path d="M12 15v6" />
-        </svg>
-        <div className="w-10 h-10 border-2 border-white/10 border-t-blue-500 rounded-full animate-spin mt-8"></div>
-        <div className="mt-4 text-gray-500 font-mono text-sm animate-[pulse-text_2s_infinite_ease-in-out]">INITIALIZING STUDIO...</div>
+        <div className="w-[50px] h-[50px] border-[3px] border-white/10 border-t-blue-500 rounded-full animate-spin"></div>
+        <div className="mt-6 text-gray-500 font-mono text-sm animate-[pulse-text_2s_infinite_ease-in-out] tracking-widest">INITIALIZING STUDIO...</div>
         <style>{`
-           @keyframes pulse-logo { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } }
            @keyframes pulse-text { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
          `}</style>
       </div>

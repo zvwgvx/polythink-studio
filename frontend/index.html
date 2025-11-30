@@ -30,44 +30,22 @@
       pointer-events: none;
     }
 
-    .loader-logo {
-      width: 120px;
-      height: 120px;
-      object-fit: contain;
-      animation: pulse-logo 2s infinite ease-in-out;
-      filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.3));
-    }
-
     .loader-spinner {
-      width: 40px;
-      height: 40px;
-      border: 2px solid rgba(255, 255, 255, 0.1);
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
       border-top-color: #3b82f6;
       border-radius: 50%;
       animation: spin 1s linear infinite;
-      margin-top: 2rem;
     }
 
     .loader-text {
-      margin-top: 1rem;
+      margin-top: 1.5rem;
       color: #6b7280;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.875rem;
       animation: pulse-text 2s infinite ease-in-out;
-    }
-
-    @keyframes pulse-logo {
-
-      0%,
-      100% {
-        transform: scale(1);
-        opacity: 0.8;
-      }
-
-      50% {
-        transform: scale(1.05);
-        opacity: 1;
-      }
+      letter-spacing: 0.1em;
     }
 
     @keyframes pulse-text {
@@ -89,13 +67,6 @@
     }
   </style>
   <div id="initial-loader" class="initial-loader">
-    <!-- SVG Logo -->
-    <svg class="loader-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-      stroke-linecap="round" stroke-linejoin="round" style="color: #3b82f6;">
-      <path d="M10 2v7.31l-4.2 8.4A2 2 0 0 0 7.6 21h8.8a2 2 0 0 0 1.8-3.29L14 9.31V2" />
-      <path d="M8 2h8" />
-      <path d="M12 15v6" />
-    </svg>
     <div class="loader-spinner"></div>
     <div class="loader-text">INITIALIZING STUDIO...</div>
   </div>
