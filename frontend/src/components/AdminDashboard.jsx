@@ -810,7 +810,7 @@ const AdminDashboard = ({ onLogout }) => {
                                         placeholder="https://github.com/username/repo.git"
                                     />
                                 </div>
-                                <Button onClick={handleSaveRemote} disabled={gitLoading}>
+                                <Button onClick={handleSaveRemote} disabled={gitLoading} className="py-3 border border-transparent">
                                     Save Config
                                 </Button>
                             </div>

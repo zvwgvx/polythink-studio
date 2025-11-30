@@ -9,44 +9,62 @@ from models import User, DatasetContent, UserDataset
 
 router = APIRouter()
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent / "dataset"
-# Fallback: if running from project root, maybe it's just ./dataset
-if not REPO_ROOT.exists():
-    REPO_ROOT = Path.cwd() / "dataset"
+def find_dataset_dir():
+    # Try to find the directory containing 'multi-turn' or 'single-turn'
+    candidates = [
+        # Standard structure: project/dataset/dataset
+        Path(__file__).resolve().parent.parent.parent / "dataset" / "dataset",
+        # Flat structure: project/dataset
+        Path(__file__).resolve().parent.parent.parent / "dataset",
+        # CWD based
+        Path.cwd() / "dataset" / "dataset",
+        Path.cwd() / "dataset",
+    ]
+    
+    for path in candidates:
+        if path.exists() and ((path / "multi-turn").exists() or (path / "single-turn").exists()):
+            print(f"DEBUG: Found valid dataset dir at {path}")
+            return path
+            
+    # Fallback to standard if nothing found (will likely fail but better than None crash)
+    print("DEBUG: Could not find valid dataset dir with subfolders. Defaulting.")
+    return Path(__file__).resolve().parent.parent.parent / "dataset" / "dataset"
 
-BASE_DIR = REPO_ROOT / "dataset" if (REPO_ROOT / "dataset").exists() else REPO_ROOT
-
-print(f"DEBUG: Resolved REPO_ROOT: {REPO_ROOT}")
-print(f"DEBUG: Resolved BASE_DIR: {BASE_DIR}")
+BASE_DIR = find_dataset_dir()
 
 @router.get("/datasets")
 async def list_datasets(current_user: User = Depends(get_current_active_user)):
+    print(f"DEBUG: list_datasets called by {current_user.username} (Role: {current_user.role})")
+    print(f"DEBUG: Using BASE_DIR: {BASE_DIR}")
+    
     datasets = []
-    if not BASE_DIR.exists():
-        return {"datasets": []}
-
-    print(f"DEBUG: REPO_ROOT={REPO_ROOT}")
-    print(f"DEBUG: BASE_DIR={BASE_DIR}")
     
     for turn_type in ['multi-turn', 'single-turn']:
-        turn_dir = BASE_DIR / turn_type
-        print(f"DEBUG: Checking {turn_dir}, exists={turn_dir.exists()}")
-        if turn_dir.exists():
-            for file_path in turn_dir.glob('*.json'):
-                print(f"DEBUG: Found file {file_path}")
+        dir_path = BASE_DIR / turn_type
+        if dir_path.exists():
+            files = list(dir_path.glob('*.json'))
+            print(f"DEBUG: Found {len(files)} files in {turn_type}")
+            for f in files:
                 datasets.append({
-                    "path": f"{turn_type}/{file_path.name}",
-                    "name": file_path.stem.replace('_', ' ').title(),
-                    "type": turn_type
+                    "name": f.stem.replace('_', ' ').title(),
+                    "path": f"{turn_type}/{f.name}",
+                    "type": turn_type,
+                    "size": f.stat().st_size
                 })
+        else:
+            print(f"DEBUG: Directory not found: {dir_path}")
     
-    print(f"DEBUG: Total datasets found: {len(datasets)}")
+    print(f"DEBUG: Total datasets found before filtering: {len(datasets)}")
 
     # Filter based on permissions
     if current_user.role != "admin":
         allowed = set(current_user.allowed_datasets)
+        print(f"DEBUG: User is not admin. Allowed: {allowed}")
         datasets = [d for d in datasets if d["path"] in allowed]
-
+        print(f"DEBUG: Datasets after filtering: {len(datasets)}")
+    else:
+        print("DEBUG: User is admin. Showing all.")
+        
     return {"datasets": datasets}
 
 @router.get("/datasets/{turn_type}/{filename}")
