@@ -124,6 +124,23 @@ export const api = {
         return response.json();
     },
 
+    deleteInvite: async (code) => {
+        const response = await fetch(`${API_URL}/admin/invites/${code}`, {
+            method: 'DELETE',
+            headers: getHeaders(),
+        });
+        if (!response.ok) throw new Error('Failed to delete invite');
+        return response.json();
+    },
+
+    getUserStats: async (username) => {
+        const response = await fetch(`${API_URL}/users/${username}/stats`, {
+            headers: getHeaders(),
+        });
+        if (!response.ok) throw new Error('Failed to fetch user stats');
+        return response.json();
+    },
+
     deleteUser: async (username) => {
         const response = await fetch(`${API_URL}/users/${username}`, {
             method: 'DELETE',

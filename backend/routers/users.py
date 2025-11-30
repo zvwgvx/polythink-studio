@@ -93,14 +93,22 @@ async def register_user(user: UserCreate, background_tasks: BackgroundTasks):
         role = "admin"
     else:
         # Atomic check and update to prevent race conditions
-        invite = invitation_codes_collection.find_one_and_update(
-            {"code": user.invitation_code, "is_used": False},
-            {"$set": {"is_used": True, "used_by": user.username}},
-            return_document=True
-        )
+        # Also check for expiration
+        invite = invitation_codes_collection.find_one({"code": user.invitation_code})
         
         if not invite:
-            raise HTTPException(status_code=400, detail="Invalid or already used invitation code")
+            raise HTTPException(status_code=400, detail="Invalid invitation code")
+            
+        if invite.get("is_used"):
+             raise HTTPException(status_code=400, detail="Invitation code already used")
+             
+        if invite.get("expires_at") and datetime.utcnow() > invite.get("expires_at"):
+             raise HTTPException(status_code=400, detail="Invitation code expired")
+
+        invitation_codes_collection.update_one(
+            {"code": user.invitation_code},
+            {"$set": {"is_used": True, "used_by": user.username}}
+        )
 
     # 4. Create User (Inactive)
     verification_code = secrets.token_hex(3).upper() # 6 chars
@@ -233,14 +241,23 @@ async def delete_user(username: str, current_user: User = Depends(get_current_ad
 @router.post("/admin/invites", response_model=InvitationCode)
 async def generate_invite(current_user: User = Depends(get_current_admin_user)):
     code = secrets.token_hex(4).upper() # 8 chars
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
     invite_data = {
         "code": code,
         "created_by": current_user.username,
         "is_used": False,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.utcnow(),
+        "expires_at": expires_at
     }
     invitation_codes_collection.insert_one(invite_data)
     return InvitationCode(**invite_data)
+
+@router.delete("/admin/invites/{code}")
+async def delete_invite(code: str, current_user: User = Depends(get_current_admin_user)):
+    result = invitation_codes_collection.delete_one({"code": code})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Invitation code not found")
+    return {"status": "success", "message": "Invitation code deleted"}
 
 @router.get("/admin/invites", response_model=List[InvitationCode])
 async def list_invites(current_user: User = Depends(get_current_admin_user)):
@@ -250,3 +267,79 @@ async def list_invites(current_user: User = Depends(get_current_admin_user)):
             del inv["_id"] # Model doesn't have ID for now
         invites.append(InvitationCode(**inv))
     return invites
+    return invites
+
+@router.get("/users/{username}/stats", response_model=User)
+async def get_user_stats(username: str, current_user: User = Depends(get_current_admin_user)):
+    user_data = users_collection.find_one({"username": username})
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_data["_id"] = str(user_data["_id"])
+    target_user = User(**user_data)
+    
+    # Calculate stats (reuse logic from read_users_me)
+    # Ideally this logic should be refactored into a service function
+    total_prs = pull_requests_collection.count_documents({"username": username})
+    merged_prs = pull_requests_collection.count_documents({"username": username, "status": "merged"})
+    rejected_prs = pull_requests_collection.count_documents({"username": username, "status": "rejected"})
+    
+    daily_stats = {}
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=30)
+    
+    pipeline = [
+        {
+            "$match": {
+                "username": username,
+                "created_at": {"$gte": start_date}
+            }
+        },
+        {
+            "$group": {
+                "_id": {
+                    "$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}
+                },
+                "total": {"$sum": 1},
+                "merged": {
+                    "$sum": {
+                        "$cond": [{"$eq": ["$status", "merged"]}, 1, 0]
+                    }
+                },
+                "rejected": {
+                    "$sum": {
+                        "$cond": [{"$eq": ["$status", "rejected"]}, 1, 0]
+                    }
+                }
+            }
+        }
+    ]
+    
+    results = list(pull_requests_collection.aggregate(pipeline))
+    for r in results:
+        daily_stats[r["_id"]] = {
+            "total": r["total"],
+            "merged": r["merged"],
+            "rejected": r["rejected"]
+        }
+        
+    daily_stats_list = []
+    for i in range(31):
+        d = start_date + timedelta(days=i)
+        date_str = d.strftime("%Y-%m-%d")
+        stats = daily_stats.get(date_str, {"total": 0, "merged": 0, "rejected": 0})
+        daily_stats_list.append({
+            "date": date_str,
+            "total": stats["total"],
+            "merged": stats["merged"],
+            "rejected": stats["rejected"]
+        })
+    
+    target_user.contribution_stats = {
+        "total_prs": total_prs,
+        "merged_prs": merged_prs,
+        "rejected_prs": rejected_prs,
+        "daily_stats": daily_stats_list
+    }
+    
+    return target_user

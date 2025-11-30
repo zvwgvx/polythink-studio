@@ -6,6 +6,7 @@ import Button from './Button';
 import Toast from './Toast';
 import ConfirmModal from './ConfirmModal';
 import InputModal from './InputModal';
+import ContributionGraph from './ContributionGraph';
 import { api } from '../services/api';
 
 const AutoResizeTextarea = ({ value, onChange, className, placeholder }) => {
@@ -30,7 +31,56 @@ const AutoResizeTextarea = ({ value, onChange, className, placeholder }) => {
     );
 };
 
-function DatasetViewer({ user, onLogout, isAdmin }) {
+const RoleSelector = ({ value, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const roles = ['system', 'user', 'assistant'];
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-1 font-bold text-xs uppercase text-gray-400 hover:text-white transition-colors tracking-wider cursor-pointer outline-none"
+            >
+                {value || 'user'}
+                <svg className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+
+            {isOpen && (
+                <div className="absolute top-full left-0 mt-2 w-32 bg-[#1E1E1E] border border-[#333] rounded-lg shadow-xl z-50 py-1 overflow-hidden animate-fade-in">
+                    {roles.map((role) => (
+                        <div
+                            key={role}
+                            onClick={() => {
+                                onChange(role);
+                                setIsOpen(false);
+                            }}
+                            className={`px-3 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer transition-colors ${value === role ? 'bg-[#333] text-white' : 'text-gray-400 hover:bg-[#2A2A2A] hover:text-white'
+                                }`}
+                        >
+                            {role}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const DatasetViewer = ({ user, onLogout, isAdmin }) => {
     const [datasets, setDatasets] = useState([]);
     const [selectedDataset, setSelectedDataset] = useState(null);
     const [content, setContent] = useState(null);
@@ -464,233 +514,7 @@ function DatasetViewer({ user, onLogout, isAdmin }) {
         </div>
     );
 
-    // Contribution Line Chart Helper (SVG)
-    const renderContributionGraph = () => {
-        const stats = user?.contribution_stats?.daily_stats;
-        if (!stats || stats.length === 0) return null;
 
-        // Dimensions
-        const width = 800;
-        const height = 350;
-        const padding = 40;
-        const chartWidth = width - padding * 2;
-        const chartHeight = height - padding * 2;
-
-        // Find Max Y
-        const maxVal = Math.max(
-            ...stats.map(d => Math.max(d.total, d.merged, d.rejected)),
-            5 // Minimum scale
-        );
-
-        // Scales
-        const xScale = (index) => padding + (index / (stats.length - 1)) * chartWidth;
-        const yScale = (value) => height - padding - (value / maxVal) * chartHeight;
-
-        // Smooth Curve Generator (Catmull-Rom Spline)
-        const getPoint = (i, key) => {
-            const d = stats[i];
-            return [xScale(i), yScale(d[key])];
-        };
-
-        const createSmoothPath = (key) => {
-            if (stats.length === 0) return "";
-            if (stats.length === 1) return `M ${xScale(0)} ${yScale(stats[0][key])}`;
-
-            let path = `M ${xScale(0)} ${yScale(stats[0][key])}`;
-
-            for (let i = 0; i < stats.length - 1; i++) {
-                const p0 = getPoint(Math.max(i - 1, 0), key);
-                const p1 = getPoint(i, key);
-                const p2 = getPoint(i + 1, key);
-                const p3 = getPoint(Math.min(i + 2, stats.length - 1), key);
-
-                const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
-                const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
-
-                const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
-                const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
-
-                path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2[0]} ${p2[1]}`;
-            }
-            return path;
-        };
-
-        // Axis Points
-        const yTicks = [0, Math.ceil(maxVal / 2), maxVal];
-        const xTicks = stats.filter((_, i) => i % 5 === 0); // Show every 5th date
-
-        const handleMouseMove = (e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-
-            // Find nearest index
-            const rawIndex = ((x - padding) / chartWidth) * (stats.length - 1);
-            const index = Math.max(0, Math.min(Math.round(rawIndex), stats.length - 1));
-
-            setHoveredIndex(index);
-        };
-
-        const handleMouseLeave = () => {
-            setHoveredIndex(null);
-        };
-
-        const hoveredData = hoveredIndex !== null ? stats[hoveredIndex] : null;
-
-        return (
-            <div className="mt-8">
-                <div className="flex justify-between items-end mb-4">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Contribution Activity (Last 30 Days)</h3>
-                    <div className="flex gap-4 text-[10px] font-bold uppercase tracking-wider">
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-1 bg-blue-400 rounded-full"></div>
-                            <span className="text-blue-400">Total Created</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-1 bg-green-400 rounded-full"></div>
-                            <span className="text-green-400">Merged</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-3 h-1 bg-red-400 rounded-full"></div>
-                            <span className="text-red-400">Rejected</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-[#121212] border border-[#333] rounded p-4 overflow-hidden relative">
-                    <svg
-                        viewBox={`0 0 ${width} ${height}`}
-                        className="w-full h-auto cursor-crosshair"
-                        onMouseMove={handleMouseMove}
-                        onMouseLeave={handleMouseLeave}
-                    >
-                        {/* Grid Lines (Y-Axis) */}
-                        {yTicks.map(tick => (
-                            <g key={tick}>
-                                <line
-                                    x1={padding}
-                                    y1={yScale(tick)}
-                                    x2={width - padding}
-                                    y2={yScale(tick)}
-                                    stroke="#333"
-                                    strokeWidth="1"
-                                    strokeDasharray="4 4"
-                                />
-                                <text
-                                    x={padding - 10}
-                                    y={yScale(tick) + 4}
-                                    textAnchor="end"
-                                    className="fill-gray-500 text-[10px] font-mono"
-                                >
-                                    {tick}
-                                </text>
-                            </g>
-                        ))}
-
-                        {/* Grid Lines (X-Axis) - Vertical Lines for every day */}
-                        {stats.map((d, i) => (
-                            <line
-                                key={`grid-${d.date}`}
-                                x1={xScale(i)}
-                                y1={0}
-                                x2={xScale(i)}
-                                y2={height - padding}
-                                stroke="#333"
-                                strokeWidth="1"
-                                strokeDasharray="2 2"
-                                opacity="0.1"
-                            />
-                        ))}
-
-                        {/* X-Axis Labels */}
-                        {xTicks.map((d, i) => {
-                            const index = stats.indexOf(d);
-                            return (
-                                <text
-                                    key={d.date}
-                                    x={xScale(index)}
-                                    y={height - 10}
-                                    textAnchor="middle"
-                                    className="fill-gray-500 text-[10px] font-mono"
-                                >
-                                    {d.date.slice(5)}
-                                </text>
-                            );
-                        })}
-
-                        {/* Data Lines (Smooth) */}
-                        <path
-                            d={createSmoothPath('total')}
-                            fill="none"
-                            stroke="#60A5FA"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="drop-shadow-lg"
-                        />
-                        <path
-                            d={createSmoothPath('merged')}
-                            fill="none"
-                            stroke="#4ADE80"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                        <path
-                            d={createSmoothPath('rejected')}
-                            fill="none"
-                            stroke="#F87171"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-
-                        {/* Hover Overlay & Tooltip */}
-                        {hoveredIndex !== null && hoveredData && (
-                            <g>
-                                {/* Vertical Cursor Line */}
-                                <line
-                                    x1={xScale(hoveredIndex)}
-                                    y1={0}
-                                    x2={xScale(hoveredIndex)}
-                                    y2={height - padding}
-                                    stroke="white"
-                                    strokeWidth="1"
-                                    strokeDasharray="4 4"
-                                    opacity="0.5"
-                                />
-
-                                {/* Active Dots */}
-                                <circle cx={xScale(hoveredIndex)} cy={yScale(hoveredData.total)} r="5" fill="#60A5FA" stroke="#121212" strokeWidth="2" />
-                                <circle cx={xScale(hoveredIndex)} cy={yScale(hoveredData.merged)} r="5" fill="#4ADE80" stroke="#121212" strokeWidth="2" />
-                                {hoveredData.rejected > 0 && (
-                                    <circle cx={xScale(hoveredIndex)} cy={yScale(hoveredData.rejected)} r="5" fill="#F87171" stroke="#121212" strokeWidth="2" />
-                                )}
-
-                                {/* Tooltip Box */}
-                                <g transform={`translate(${Math.min(xScale(hoveredIndex) + 10, width - 160)}, 20)`}>
-                                    <rect width="150" height="90" rx="4" fill="#1E1E1E" stroke="#333" strokeWidth="1" className="shadow-xl" />
-                                    <text x="10" y="20" className="fill-white text-xs font-bold uppercase tracking-wider">{hoveredData.date}</text>
-
-                                    <g transform="translate(10, 40)">
-                                        <circle cx="4" cy="-3" r="3" fill="#60A5FA" />
-                                        <text x="15" y="0" className="fill-gray-300 text-[10px] font-mono">Total: {hoveredData.total}</text>
-                                    </g>
-                                    <g transform="translate(10, 55)">
-                                        <circle cx="4" cy="-3" r="3" fill="#4ADE80" />
-                                        <text x="15" y="0" className="fill-gray-300 text-[10px] font-mono">Merged: {hoveredData.merged}</text>
-                                    </g>
-                                    <g transform="translate(10, 70)">
-                                        <circle cx="4" cy="-3" r="3" fill="#F87171" />
-                                        <text x="15" y="0" className="fill-gray-300 text-[10px] font-mono">Rejected: {hoveredData.rejected}</text>
-                                    </g>
-                                </g>
-                            </g>
-                        )}
-                    </svg>
-                </div>
-            </div>
-        );
-    };
 
     return (
         <Layout sidebar={Sidebar}>
@@ -752,7 +576,7 @@ function DatasetViewer({ user, onLogout, isAdmin }) {
 
                     {/* Contribution Graph */}
                     <Card>
-                        {renderContributionGraph()}
+                        <ContributionGraph stats={user?.contribution_stats?.daily_stats} />
                     </Card>
                 </div>
             ) : (
@@ -864,63 +688,69 @@ function DatasetViewer({ user, onLogout, isAdmin }) {
                                                             // EDIT MODE FOR THIS ITEM
                                                             <div className="space-y-6 animate-fade-in">
                                                                 {displayItem.messages && displayItem.messages.map((msg, msgIdx) => (
-                                                                    <div key={msgIdx} className={`p-4 rounded border relative transition-colors ${msg.role === 'user' ? 'bg-[#1A2332] border-[#2A3B55]' :
+                                                                    <div key={msgIdx} className={`px-6 py-4 rounded-2xl border relative transition-colors w-full ${msg.role === 'user' ? 'bg-[#1A2332] border-[#2A3B55]' :
                                                                         msg.role === 'assistant' ? 'bg-[#1A2E26] border-[#2A4B3D]' :
                                                                             'bg-[#252525] border-[#333]'
                                                                         }`}>
                                                                         {/* Message Header */}
-                                                                        <div className="flex justify-between items-center mb-3">
+                                                                        <div className="flex justify-between items-center mb-2">
                                                                             <div className="flex items-center gap-2">
-                                                                                <select
+                                                                                <RoleSelector
                                                                                     value={msg.role || 'user'}
-                                                                                    onChange={(e) => updateTempMessage(msgIdx, 'role', e.target.value)}
-                                                                                    className="font-bold uppercase bg-transparent border-b border-gray-600 text-gray-300 outline-none focus:border-white pb-1"
-                                                                                >
-                                                                                    <option value="system">System</option>
-                                                                                    <option value="user">User</option>
-                                                                                    <option value="assistant">Assistant</option>
-                                                                                </select>
+                                                                                    onChange={(newRole) => updateTempMessage(msgIdx, 'role', newRole)}
+                                                                                />
                                                                             </div>
-                                                                            <div className="flex items-center gap-2">
+                                                                            <div className="flex items-center gap-3">
                                                                                 <button
                                                                                     onClick={() => toggleTempThinking(msgIdx)}
-                                                                                    className={`text-xs font-bold px-2 py-1 rounded border transition-colors ${msg.thinking !== null
-                                                                                        ? 'bg-yellow-900/30 text-yellow-200 border-yellow-700'
-                                                                                        : 'bg-[#333] text-gray-400 border-[#444] hover:bg-[#444]'
+                                                                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all flex items-center gap-1 ${msg.thinking !== null
+                                                                                        ? 'bg-black/40 text-gray-300 border-gray-600 hover:bg-black/60'
+                                                                                        : 'bg-transparent text-gray-600 border-transparent hover:text-gray-400 hover:bg-black/20'
                                                                                         }`}
+                                                                                    title="Toggle Thinking Process"
                                                                                 >
-                                                                                    {msg.thinking !== null ? 'Thinking: ON' : 'Thinking: OFF'}
+                                                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                                                                    </svg>
+                                                                                    {msg.thinking !== null ? 'Thinking' : 'Add Thinking'}
                                                                                 </button>
                                                                                 <button
                                                                                     onClick={() => removeTempMessage(msgIdx)}
-                                                                                    className="text-red-400 hover:text-red-300 px-2"
+                                                                                    className="text-gray-600 hover:text-red-400 transition-colors"
+                                                                                    title="Remove Message"
                                                                                 >
-                                                                                    ✕
+                                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                                                    </svg>
                                                                                 </button>
                                                                             </div>
                                                                         </div>
 
                                                                         {/* Thinking Field */}
                                                                         {msg.thinking !== null && (
-                                                                            <div className="mb-3">
-                                                                                <label className="block text-xs font-bold text-yellow-600/80 mb-1 uppercase tracking-wider">Thinking Process</label>
+                                                                            <div className="mb-3 p-3 bg-black/20 rounded-lg border border-white/5 group-focus-within:border-white/10 transition-colors">
+                                                                                <div className="flex items-center gap-2 mb-1 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                                                                    </svg>
+                                                                                    Thinking Process
+                                                                                </div>
                                                                                 <AutoResizeTextarea
                                                                                     value={msg.thinking || ''}
                                                                                     onChange={(e) => updateTempMessage(msgIdx, 'thinking', e.target.value)}
-                                                                                    className="w-full p-3 text-sm bg-yellow-900/10 text-yellow-100 border border-yellow-900/30 rounded focus:border-yellow-700 outline-none min-h-[60px]"
-                                                                                    placeholder="Add thinking process..."
+                                                                                    className="w-full pl-5 text-sm bg-transparent text-gray-400 italic border-l-2 border-gray-700/50 outline-none resize-none placeholder-gray-700"
+                                                                                    placeholder="Describe the thought process..."
                                                                                 />
                                                                             </div>
                                                                         )}
 
                                                                         {/* Content Field */}
                                                                         <div>
-                                                                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Content</label>
                                                                             <AutoResizeTextarea
                                                                                 value={msg.content || ''}
                                                                                 onChange={(e) => updateTempMessage(msgIdx, 'content', e.target.value)}
-                                                                                className="w-full p-3 text-[15px] leading-relaxed bg-[#121212] text-gray-300 border border-[#333] rounded focus:border-white outline-none min-h-[80px]"
-                                                                                placeholder="Message content..."
+                                                                                className="w-full text-[15px] leading-relaxed bg-transparent text-gray-200 border-none outline-none resize-none placeholder-gray-600 p-0 focus:ring-0"
+                                                                                placeholder="Type a message..."
                                                                             />
                                                                         </div>
                                                                     </div>
@@ -953,17 +783,24 @@ function DatasetViewer({ user, onLogout, isAdmin }) {
                                                             <div className="space-y-4 cursor-pointer" title="Double click to edit">
                                                                 {Array.isArray(displayItem.messages) ? (
                                                                     displayItem.messages.map((msg, mIdx) => (
-                                                                        <div key={mIdx} className={`p-4 rounded border ${msg.role === 'user' ? 'bg-[#1A2332] border-[#2A3B55] ml-auto w-fit max-w-[85%]' :
-                                                                            msg.role === 'assistant' ? 'bg-[#1A2E26] border-[#2A4B3D] mr-auto w-fit max-w-[85%]' :
-                                                                                'bg-[#252525] border-[#333] w-full'
+                                                                        <div key={mIdx} className={`px-6 py-4 rounded-2xl border min-w-[150px] w-full max-w-full ${msg.role === 'user' ? 'bg-[#1A2332] border-[#2A3B55]' :
+                                                                            msg.role === 'assistant' ? 'bg-[#1A2E26] border-[#2A4B3D]' :
+                                                                                'bg-[#252525] border-[#333]'
                                                                             }`}>
                                                                             <div className="font-bold text-xs uppercase mb-2 flex justify-between text-gray-400">
                                                                                 <span>{msg.role || 'unknown'}</span>
                                                                             </div>
                                                                             {msg.thinking !== null && (
-                                                                                <div className="mb-3 p-3 bg-yellow-900/10 border-l-2 border-yellow-700 text-sm text-yellow-200/80 italic rounded-r">
-                                                                                    <span className="font-bold not-italic text-xs text-yellow-600 block mb-1">THINKING:</span>
-                                                                                    {msg.thinking || "(Empty thinking)"}
+                                                                                <div className="mb-3 p-3 bg-black/20 rounded-lg border border-white/5">
+                                                                                    <div className="flex items-center gap-2 mb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                                                                        </svg>
+                                                                                        Thinking Process
+                                                                                    </div>
+                                                                                    <div className="text-sm text-gray-400 italic leading-relaxed pl-5 border-l-2 border-gray-700/50">
+                                                                                        {msg.thinking || "(Empty thinking)"}
+                                                                                    </div>
                                                                                 </div>
                                                                             )}
                                                                             <div className="whitespace-pre-wrap text-gray-200 text-[15px] leading-relaxed">{msg.content || ''}</div>

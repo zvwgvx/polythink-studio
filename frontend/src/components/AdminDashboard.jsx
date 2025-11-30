@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import Layout from './Layout';
 import Card from './Card';
 import Button from './Button';
+import ContributionGraph from './ContributionGraph';
 import { diffJson } from 'diff';
 
 const AdminDashboard = () => {
@@ -23,6 +24,10 @@ const AdminDashboard = () => {
     // Diff State
     const [diffData, setDiffData] = useState(null);
     const [showDiffModal, setShowDiffModal] = useState(false);
+
+    // User Stats Modal
+    const [selectedUserStats, setSelectedUserStats] = useState(null);
+    const [showUserStatsModal, setShowUserStatsModal] = useState(false);
 
     const [invites, setInvites] = useState([]);
 
@@ -93,6 +98,29 @@ const AdminDashboard = () => {
             loadUsers();
         } catch (err) {
             alert('Failed to delete user');
+        }
+    };
+
+    const handleDeleteInvite = async (code) => {
+        if (!window.confirm(`Are you sure you want to cancel invitation code ${code}?`)) return;
+        try {
+            await api.deleteInvite(code);
+            loadInvites();
+        } catch (err) {
+            alert('Failed to delete invite: ' + err.message);
+        }
+    };
+
+    const handleViewUserStats = async (username) => {
+        setLoading(true);
+        try {
+            const data = await api.getUserStats(username);
+            setSelectedUserStats(data);
+            setShowUserStatsModal(true);
+        } catch (err) {
+            alert('Failed to load user stats: ' + err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -236,6 +264,49 @@ const AdminDashboard = () => {
         );
     };
 
+    const UserStatsModal = () => {
+        if (!showUserStatsModal || !selectedUserStats) return null;
+
+        return (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-[#1E1E1E] border border-[#333] rounded-lg w-full max-w-4xl flex flex-col shadow-2xl animate-fade-in-up">
+                    <div className="p-6 border-b border-[#333] flex justify-between items-center bg-[#252525] rounded-t-lg">
+                        <div>
+                            <h3 className="text-2xl font-bold text-white mb-1">{selectedUserStats.full_name || selectedUserStats.username}</h3>
+                            <p className="text-sm text-gray-400">@{selectedUserStats.username} • {selectedUserStats.email}</p>
+                        </div>
+                        <button onClick={() => setShowUserStatsModal(false)} className="text-gray-400 hover:text-white transition-colors">
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <div className="p-8 bg-[#0a0a0a]">
+                        <div className="grid grid-cols-3 gap-6 mb-8">
+                            <div className="bg-[#121212] p-4 rounded border border-[#333]">
+                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Total PRs</div>
+                                <div className="text-2xl font-bold text-blue-400">{selectedUserStats.contribution_stats?.total_prs || 0}</div>
+                            </div>
+                            <div className="bg-[#121212] p-4 rounded border border-[#333]">
+                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Merged</div>
+                                <div className="text-2xl font-bold text-green-400">{selectedUserStats.contribution_stats?.merged_prs || 0}</div>
+                            </div>
+                            <div className="bg-[#121212] p-4 rounded border border-[#333]">
+                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Rejected</div>
+                                <div className="text-2xl font-bold text-red-400">{selectedUserStats.contribution_stats?.rejected_prs || 0}</div>
+                            </div>
+                        </div>
+
+                        <ContributionGraph stats={selectedUserStats.contribution_stats?.daily_stats} />
+                    </div>
+
+                    <div className="p-4 border-t border-[#333] bg-[#252525] flex justify-end rounded-b-lg">
+                        <Button variant="secondary" onClick={() => setShowUserStatsModal(false)}>Close</Button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const Sidebar = (
         <div className="space-y-8">
             <div>
@@ -275,6 +346,7 @@ const AdminDashboard = () => {
     return (
         <Layout sidebar={Sidebar}>
             <DiffModal />
+            <UserStatsModal />
             <div className="space-y-8">
                 <div className="flex justify-between items-center border-b border-[#333] pb-6">
                     <h2 className="text-2xl font-black text-white tracking-tight uppercase">
@@ -305,22 +377,38 @@ const AdminDashboard = () => {
                                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Recent Codes</h4>
                                     <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
                                         {invites.map(invite => (
-                                            <div key={invite.code} className="bg-[#121212] border border-[#333] rounded p-3 flex justify-between items-center">
+                                            <div key={invite.code} className="bg-[#121212] border border-[#333] rounded p-3 flex justify-between items-center group">
                                                 <div>
-                                                    <div className="font-mono text-lg font-bold text-white tracking-widest">{invite.code}</div>
-                                                    <div className="text-[10px] text-gray-500">
-                                                        {new Date(invite.created_at).toLocaleDateString()} • {invite.created_by}
+                                                    <div className="font-mono text-lg font-bold text-white tracking-widest mb-1">{invite.code}</div>
+                                                    <div className="text-[10px] text-gray-500 flex flex-col gap-0.5">
+                                                        <span>Created: {new Date(invite.created_at).toLocaleTimeString()}</span>
+                                                        {invite.expires_at && (
+                                                            <span className={new Date() > new Date(invite.expires_at) ? 'text-red-500 font-bold' : 'text-yellow-500'}>
+                                                                Expires: {new Date(invite.expires_at).toLocaleTimeString()}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div>
-                                                    {invite.is_used ? (
-                                                        <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-red-900/30 text-red-200 border border-red-800">
-                                                            Used by {invite.used_by}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-green-900/30 text-green-200 border border-green-800">
-                                                            Available
-                                                        </span>
+                                                <div className="flex items-center gap-3">
+                                                    <div>
+                                                        {invite.is_used ? (
+                                                            <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-red-900/30 text-red-200 border border-red-800">
+                                                                Used by {invite.used_by}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-green-900/30 text-green-200 border border-green-800">
+                                                                Available
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {!invite.is_used && (
+                                                        <button
+                                                            onClick={() => handleDeleteInvite(invite.code)}
+                                                            className="text-gray-600 hover:text-red-400 transition-colors p-1 rounded hover:bg-[#333]"
+                                                            title="Cancel Invitation"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        </button>
                                                     )}
                                                 </div>
                                             </div>
@@ -349,7 +437,11 @@ const AdminDashboard = () => {
                                         </thead>
                                         <tbody className="text-sm">
                                             {users.map(user => (
-                                                <tr key={user.username} className="border-b border-[#333] hover:bg-[#252525] transition-colors">
+                                                <tr
+                                                    key={user.username}
+                                                    className="border-b border-[#333] hover:bg-[#252525] transition-colors cursor-pointer"
+                                                    onClick={() => handleViewUserStats(user.username)}
+                                                >
                                                     <td className="p-3 font-medium text-white">{user.username}</td>
                                                     <td className="p-3">
                                                         <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${user.role === 'admin'
@@ -375,7 +467,10 @@ const AdminDashboard = () => {
                                                         <Button
                                                             variant="danger"
                                                             size="xs"
-                                                            onClick={() => handleDeleteUser(user.username)}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteUser(user.username);
+                                                            }}
                                                         >
                                                             Delete
                                                         </Button>

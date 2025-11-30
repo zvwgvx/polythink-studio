@@ -71,6 +71,7 @@ class InvitationCode(BaseModel):
     is_used: bool = False
     used_by: Optional[str] = None
     created_at: datetime = datetime.utcnow()
+    expires_at: Optional[datetime] = None
 
 class UserDataset(BaseModel):
     id: Optional[str] = Field(None, alias="_id")
