@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
 import Button from './Button';
+import Toast from './Toast';
 
 const Login = ({ onLogin }) => {
     const [isRegistering, setIsRegistering] = useState(false);
